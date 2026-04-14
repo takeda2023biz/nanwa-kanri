@@ -100,7 +100,7 @@ function si(col){
 async function load(){
   const {data, error} = await sb
     .from('devices')
-    .select('honbu, assignee, category, name, contract_no, phone')
+    .select('honbu, assignee, yomi, category, name, contract_no, phone')
     .eq('type','携帯')
     .not('phone','is',null);
   if(error){
@@ -128,11 +128,14 @@ function render(){
   const filtered = DATA.filter(d=>{
     const mq = !q ||
       (d.assignee||'').includes(q) ||
+      (d.yomi||'').includes(q) ||
       (d.phone||'').includes(q);
     const mh = !hb || d.honbu === hb;
     return mq && mh;
   }).sort((a,b)=>{
-    const av = a[sortCol]||'', bv = b[sortCol]||'';
+    // 担当者ソートはヨミガナ基準
+    const key = sortCol === 'assignee' ? 'yomi' : sortCol;
+    const av = a[key]||'', bv = b[key]||'';
     return av < bv ? -sortDir : av > bv ? sortDir : 0;
   });
 
@@ -150,6 +153,7 @@ function render(){
         <tr>
           <th style="width:160px;cursor:pointer;user-select:none" onclick="sortBy('honbu')">事業本部${si('honbu')}</th>
           <th style="width:110px;cursor:pointer;user-select:none" onclick="sortBy('assignee')">担当者${si('assignee')}</th>
+          <th style="width:120px">カナ</th>
           <th style="width:80px;cursor:pointer;user-select:none" onclick="sortBy('category')">カテゴリ${si('category')}</th>
           <th style="width:160px;cursor:pointer;user-select:none" onclick="sortBy('name')">機種名${si('name')}</th>
           <th style="width:110px;cursor:pointer;user-select:none" onclick="sortBy('contract_no')">管理No${si('contract_no')}</th>
@@ -161,6 +165,7 @@ function render(){
           <tr>
             <td><span class="badge ${HB_CLS[d.honbu]||'b-gray'}">${d.honbu||'—'}</span></td>
             <td style="font-weight:600">${d.assignee||'<span style="color:#ccc">未割当</span>'}</td>
+            <td style="font-size:11px;color:#888">${d.yomi||''}</td>
             <td><span class="badge ${d.category==='iPhone'?'b-blue':d.category==='Android'?'b-green':'b-purple'}">${d.category||'—'}</span></td>
             <td style="color:#666;font-size:12px">${d.name||'—'}</td>
             <td style="font-family:monospace;font-size:12px;color:#444;font-weight:600">${d.contract_no||'—'}</td>
