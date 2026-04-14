@@ -24,14 +24,17 @@ tbody tr{border-bottom:1px solid #f0efe8;}
 tbody tr:last-child{border-bottom:none;}
 tbody tr:hover{background:#fafaf8;}
 tbody td{padding:12px 14px;vertical-align:middle;}
-.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
-.b-blue{background:#E6F1FB;color:#0C447C;}
-.b-green{background:#EAF3DE;color:#27500A;}
-.b-amber{background:#FAEEDA;color:#633806;}
-.b-purple{background:#EEEDFE;color:#3C3489;}
-.b-teal{background:#E1F5EE;color:#085041;}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+.b-kanri{background:#1a2d5a;color:#fff;}
+.b-energy{background:#f5c400;color:#5a3d00;}
+.b-kankyo{background:#1a6fc4;color:#fff;}
+.b-eisei{background:#d94040;color:#fff;}
+.b-kensetsu{background:#2e7d32;color:#fff;}
+.b-zairyo{background:#0097a7;color:#fff;}
 .b-gray{background:#F1EFE8;color:#5F5E5A;}
-.b-pink{background:#FBEAF0;color:#72243E;}
+.b-iphone{background:#E6F1FB;color:#0C447C;}
+.b-android{background:#EAF3DE;color:#27500A;}
+.b-ipad{background:#EEEDFE;color:#3C3489;}
 .phone-num{font-family:monospace;font-size:15px;font-weight:700;letter-spacing:.04em;color:#1a1a1a;}
 .call-btn{display:inline-block;padding:5px 14px;border-radius:20px;background:#1a1a1a;color:#fff;font-size:12px;font-weight:600;text-decoration:none;margin-left:10px;}
 .call-btn:hover{background:#333;}
@@ -78,8 +81,12 @@ document.getElementById('today-label').textContent =
   TODAY.getFullYear()+'年'+(TODAY.getMonth()+1)+'月'+TODAY.getDate()+'日 現在';
 
 const HB_CLS = {
-  '建設事業本部':'b-blue','建設資材事業本部':'b-teal','エネルギー事業本部':'b-amber',
-  '管理本部':'b-purple','環境衛生事業本部':'b-green','衛生管理部':'b-pink'
+  '管理本部':'b-kanri',
+  'エネルギー事業本部':'b-energy',
+  '環境衛生事業本部':'b-kankyo',
+  '衛生管理部':'b-eisei',
+  '建設事業本部':'b-kensetsu',
+  '建設資材事業本部':'b-zairyo'
 };
 
 let DATA = [];
@@ -166,7 +173,7 @@ function render(){
             <td><span class="badge ${HB_CLS[d.honbu]||'b-gray'}">${d.honbu||'—'}</span></td>
             <td style="font-weight:600">${d.assignee||'<span style="color:#ccc">未割当</span>'}</td>
             <td style="font-size:11px;color:#888">${d.yomi||''}</td>
-            <td><span class="badge ${d.category==='iPhone'?'b-blue':d.category==='Android'?'b-green':'b-purple'}">${d.category||'—'}</span></td>
+            <td><span class="badge ${d.category==='iPhone'?'b-iphone':d.category==='Android'?'b-android':'b-ipad'}">${d.category||'—'}</span></td>
             <td style="color:#666;font-size:12px">${d.name||'—'}</td>
             <td style="font-family:monospace;font-size:12px;color:#444;font-weight:600">${d.contract_no||'—'}</td>
             <td>
