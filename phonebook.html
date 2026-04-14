@@ -83,15 +83,24 @@ const HB_CLS = {
 };
 
 let DATA = [];
+let sortCol = 'honbu', sortDir = 1;
+
+function sortBy(col){
+  if(sortCol === col) sortDir = -sortDir;
+  else { sortCol = col; sortDir = 1; }
+  render();
+}
+function si(col){
+  if(sortCol !== col) return '<span style="color:#ccc;margin-left:3px">↕</span>';
+  return `<span style="margin-left:3px">${sortDir===1?'↑':'↓'}</span>`;
+}
 
 async function load(){
   const {data, error} = await sb
     .from('devices')
     .select('honbu, assignee, category, name, contract_no, phone')
     .eq('type','携帯')
-    .not('phone','is',null)
-    .order('honbu')
-    .order('assignee');
+    .not('phone','is',null);
   if(error){
     document.getElementById('tbl-wrap').innerHTML=
       '<div class="empty">データの読み込みに失敗しました</div>';
@@ -99,7 +108,6 @@ async function load(){
   }
   DATA = data || [];
 
-  // 事業本部フィルター生成
   const honbus = [...new Set(DATA.map(d=>d.honbu).filter(Boolean))];
   const sel = document.getElementById('f-honbu');
   honbus.forEach(h=>{
@@ -121,6 +129,9 @@ function render(){
       (d.phone||'').includes(q);
     const mh = !hb || d.honbu === hb;
     return mq && mh;
+  }).sort((a,b)=>{
+    const av = a[sortCol]||'', bv = b[sortCol]||'';
+    return av < bv ? -sortDir : av > bv ? sortDir : 0;
   });
 
   document.getElementById('count').textContent = `${filtered.length}件表示`;
@@ -135,12 +146,12 @@ function render(){
     <table>
       <thead>
         <tr>
-          <th style="width:160px">事業本部</th>
-          <th style="width:110px">担当者</th>
-          <th style="width:80px">カテゴリ</th>
-          <th style="width:160px">機種名</th>
-          <th style="width:110px">管理No</th>
-          <th>携帯番号</th>
+          <th style="width:160px;cursor:pointer;user-select:none" onclick="sortBy('honbu')">事業本部${si('honbu')}</th>
+          <th style="width:110px;cursor:pointer;user-select:none" onclick="sortBy('assignee')">担当者${si('assignee')}</th>
+          <th style="width:80px;cursor:pointer;user-select:none" onclick="sortBy('category')">カテゴリ${si('category')}</th>
+          <th style="width:160px;cursor:pointer;user-select:none" onclick="sortBy('name')">機種名${si('name')}</th>
+          <th style="width:110px;cursor:pointer;user-select:none" onclick="sortBy('contract_no')">管理No${si('contract_no')}</th>
+          <th style="cursor:pointer;user-select:none" onclick="sortBy('phone')">携帯番号${si('phone')}</th>
         </tr>
       </thead>
       <tbody>
