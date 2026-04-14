@@ -135,7 +135,7 @@ function render(){
     <table>
       <thead>
         <tr>
-          <th style="width:130px">事業本部</th>
+          <th style="width:160px">事業本部</th>
           <th style="width:110px">担当者</th>
           <th style="width:80px">カテゴリ</th>
           <th style="width:160px">機種名</th>
@@ -150,7 +150,7 @@ function render(){
             <td style="font-weight:600">${d.assignee||'<span style="color:#ccc">未割当</span>'}</td>
             <td><span class="badge ${d.category==='iPhone'?'b-blue':d.category==='Android'?'b-green':'b-purple'}">${d.category||'—'}</span></td>
             <td style="color:#666;font-size:12px">${d.name||'—'}</td>
-            <td style="font-family:monospace;font-size:11px;color:#aaa">${d.contract_no||'—'}</td>
+            <td style="font-family:monospace;font-size:12px;color:#444;font-weight:600">${d.contract_no||'—'}</td>
             <td>
               <span class="phone-num">${d.phone}</span>
             </td>
