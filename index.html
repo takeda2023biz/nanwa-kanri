@@ -104,6 +104,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
   <button class="nav-btn" onclick="showPage('devices',this)">機器管理</button>
   <button class="nav-btn" onclick="showPage('contracts',this)">契約管理</button>
   <button class="nav-btn" onclick="showPage('alerts',this)">期限アラート</button>
+  <button class="nav-btn" onclick="showPage('phonebook',this)">電話番号帳</button>
 </div>
 
 <div class="main">
@@ -112,6 +113,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
   <div id="page-devices" class="page"></div>
   <div id="page-contracts" class="page"></div>
   <div id="page-alerts" class="page"></div>
+  <div id="page-phonebook" class="page"></div>
 </div>
 
 <!-- 社員モーダル -->
@@ -272,7 +274,7 @@ async function showPage(id,btn){
   btn.classList.add('active');
   currentPage=id;
   await loadAll();
-  const renders={dashboard:renderDashboard,employees:renderEmployees,devices:renderDevices,contracts:renderContracts,alerts:renderAlerts};
+  const renders={dashboard:renderDashboard,employees:renderEmployees,devices:renderDevices,contracts:renderContracts,alerts:renderAlerts,phonebook:renderPhonebook};
   if(renders[id]) renders[id]();
 }
 
@@ -712,6 +714,70 @@ function renderPager(pages,current,varName,renderFn){
   }
   if(current<pages) h+=`<button class="pg" onclick="${varName}=${current+1};${renderFn}()">›</button>`;
   return h;
+}
+
+// ── 電話番号帳 ──
+let pbQ='',pbHonbu='';
+function renderPhonebook(){
+  const mobiles=DEVICES.filter(d=>d.type==='携帯'&&d.phone);
+  const filtered=mobiles.filter(d=>{
+    const mq=!pbQ||(d.assignee||'').includes(pbQ)||(d.phone||'').includes(pbQ)||(d.honbu||'').includes(pbQ);
+    const mh=!pbHonbu||d.honbu===pbHonbu;
+    return mq&&mh;
+  }).sort((a,b)=>(a.honbu||'').localeCompare(b.honbu||'','ja')||(a.assignee||'').localeCompare(b.assignee||'','ja'));
+  const honbus=[...new Set(mobiles.map(d=>d.honbu).filter(Boolean))];
+  document.getElementById('page-phonebook').innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <div style="font-size:20px;font-weight:700">電話番号帳</div>
+        <div style="font-size:12px;color:#888;margin-top:3px">社給携帯 — 電話番号一覧</div>
+      </div>
+      <button class="btn" onclick="exportPhoneCSV()">CSVエクスポート</button>
+    </div>
+    <div class="controls">
+      <input type="text" placeholder="担当者名・電話番号・事業本部で検索..." value="${pbQ}"
+        oninput="pbQ=this.value;renderPhonebook()"/>
+      <select onchange="pbHonbu=this.value;renderPhonebook()">
+        <option value="">全事業本部</option>
+        ${honbus.map(h=>`<option value="${h}"${pbHonbu===h?' selected':''}>${h}</option>`).join('')}
+      </select>
+    </div>
+    <div style="font-size:12px;color:#888;margin-bottom:8px">${filtered.length}件表示</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:130px">事業本部</th>
+          <th style="width:120px">担当者</th>
+          <th style="width:80px">カテゴリ</th>
+          <th style="width:160px">機種名</th>
+          <th style="width:120px">契約番号（管理No）</th>
+          <th style="width:140px">携帯番号</th>
+        </tr></thead>
+        <tbody>${filtered.length?filtered.map(d=>`<tr>
+          <td>${hbBadge(d.honbu)}</td>
+          <td style="font-weight:600">${d.assignee||'<span style="color:#ccc">未割当</span>'}</td>
+          <td><span class="badge ${d.category==='iPhone'?'b-blue':d.category==='Android'?'b-green':'b-purple'}">${d.category||'—'}</span></td>
+          <td>${d.name}</td>
+          <td class="mono">${d.contract_no||'—'}</td>
+          <td>
+            <span style="font-family:monospace;font-size:13px;font-weight:600;letter-spacing:.04em">${d.phone}</span>
+            <a href="tel:${d.phone}" style="margin-left:8px;font-size:11px;color:#378ADD;text-decoration:none">発信</a>
+          </td>
+        </tr>`).join(''):`<tr><td colspan="6" style="text-align:center;padding:2.5rem;color:#aaa">該当なし</td></tr>`}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function exportPhoneCSV(){
+  const mobiles=DEVICES.filter(d=>d.type==='携帯'&&d.phone)
+    .sort((a,b)=>(a.honbu||'').localeCompare(b.honbu||'','ja'));
+  const h=['事業本部','担当者','カテゴリ','機種名','契約番号（管理No）','携帯番号'];
+  const rows=mobiles.map(d=>[d.honbu,d.assignee,d.category,d.name,d.contract_no,d.phone]);
+  const csv=[h,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download='電話番号帳.csv';a.click();
 }
 
 // ── 初期ロード ──
