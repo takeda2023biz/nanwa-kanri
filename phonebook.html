@@ -91,8 +91,10 @@ function sortBy(col){
   render();
 }
 function si(col){
-  if(sortCol !== col) return '<span style="color:#ccc;margin-left:3px">↕</span>';
-  return `<span style="margin-left:3px">${sortDir===1?'↑':'↓'}</span>`;
+  if(sortCol !== col) return '<span style="color:#ccc;margin-left:4px;font-size:10px">▲▼</span>';
+  return sortDir===1
+    ? '<span style="margin-left:4px;font-size:10px">▲</span>'
+    : '<span style="margin-left:4px;font-size:10px">▼</span>';
 }
 
 async function load(){
