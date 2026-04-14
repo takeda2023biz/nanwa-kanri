@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>社給携帯 電話番号帳</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:14px;background:#f5f5f3;color:#1a1a1a;min-height:100vh;}
+.topbar{background:#fff;border-bottom:1px solid #e0dfd8;padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:52px;position:sticky;top:0;z-index:100;}
+.topbar-title{font-size:16px;font-weight:600;}
+.topbar-sub{font-size:11px;color:#888;margin-top:2px;}
+.main{padding:20px;max-width:900px;margin:0 auto;}
+.controls{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.controls input,.controls select{height:40px;padding:0 14px;border-radius:10px;border:1px solid #d8d7d0;background:#fff;color:#1a1a1a;font-size:14px;font-family:inherit;}
+.controls input{flex:1;min-width:200px;}
+.controls input:focus,.controls select:focus{outline:none;border-color:#888;}
+.count{font-size:12px;color:#888;margin-bottom:10px;}
+.tbl-wrap{border:1px solid #e8e7e0;border-radius:12px;overflow:auto;background:#fff;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{background:#f9f9f7;padding:10px 14px;text-align:left;font-weight:600;font-size:12px;color:#666;border-bottom:1px solid #e8e7e0;white-space:nowrap;}
+tbody tr{border-bottom:1px solid #f0efe8;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:#fafaf8;}
+tbody td{padding:12px 14px;vertical-align:middle;}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
+.b-blue{background:#E6F1FB;color:#0C447C;}
+.b-green{background:#EAF3DE;color:#27500A;}
+.b-amber{background:#FAEEDA;color:#633806;}
+.b-purple{background:#EEEDFE;color:#3C3489;}
+.b-teal{background:#E1F5EE;color:#085041;}
+.b-gray{background:#F1EFE8;color:#5F5E5A;}
+.b-pink{background:#FBEAF0;color:#72243E;}
+.phone-num{font-family:monospace;font-size:15px;font-weight:700;letter-spacing:.04em;color:#1a1a1a;}
+.call-btn{display:inline-block;padding:5px 14px;border-radius:20px;background:#1a1a1a;color:#fff;font-size:12px;font-weight:600;text-decoration:none;margin-left:10px;}
+.call-btn:hover{background:#333;}
+.loading{text-align:center;padding:60px;color:#888;}
+.empty{text-align:center;padding:60px;color:#aaa;font-size:14px;}
+@media(max-width:600px){
+  .controls{flex-direction:column;}
+  .controls input,.controls select{width:100%;}
+  table{font-size:12px;}
+  .phone-num{font-size:13px;}
+  thead th:nth-child(3),tbody td:nth-child(3){display:none;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="topbar-title">社給携帯 電話番号帳</div>
+    <div class="topbar-sub" id="today-label"></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="controls">
+    <input type="text" id="search" placeholder="担当者名・電話番号で検索..." oninput="render()"/>
+    <select id="f-honbu" onchange="render()">
+      <option value="">全事業本部</option>
+    </select>
+  </div>
+  <div class="count" id="count"></div>
+  <div class="tbl-wrap" id="tbl-wrap">
+    <div class="loading">読み込み中...</div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://cicxvcjnvkynhukbnrns.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const TODAY = new Date();
+document.getElementById('today-label').textContent =
+  TODAY.getFullYear()+'年'+(TODAY.getMonth()+1)+'月'+TODAY.getDate()+'日 現在';
+
+const HB_CLS = {
+  '建設事業本部':'b-blue','建設資材事業本部':'b-teal','エネルギー事業本部':'b-amber',
+  '管理本部':'b-purple','環境衛生事業本部':'b-green','衛生管理部':'b-pink'
+};
+
+let DATA = [];
+
+async function load(){
+  const {data, error} = await sb
+    .from('devices')
+    .select('honbu, assignee, category, name, contract_no, phone')
+    .eq('type','携帯')
+    .not('phone','is',null)
+    .order('honbu')
+    .order('assignee');
+  if(error){
+    document.getElementById('tbl-wrap').innerHTML=
+      '<div class="empty">データの読み込みに失敗しました</div>';
+    return;
+  }
+  DATA = data || [];
+
+  // 事業本部フィルター生成
+  const honbus = [...new Set(DATA.map(d=>d.honbu).filter(Boolean))];
+  const sel = document.getElementById('f-honbu');
+  honbus.forEach(h=>{
+    const o = document.createElement('option');
+    o.value = h; o.textContent = h;
+    sel.appendChild(o);
+  });
+
+  render();
+}
+
+function render(){
+  const q = document.getElementById('search').value.trim();
+  const hb = document.getElementById('f-honbu').value;
+
+  const filtered = DATA.filter(d=>{
+    const mq = !q ||
+      (d.assignee||'').includes(q) ||
+      (d.phone||'').includes(q);
+    const mh = !hb || d.honbu === hb;
+    return mq && mh;
+  });
+
+  document.getElementById('count').textContent = `${filtered.length}件表示`;
+
+  if(!filtered.length){
+    document.getElementById('tbl-wrap').innerHTML =
+      '<div class="empty">該当する番号が見つかりません</div>';
+    return;
+  }
+
+  document.getElementById('tbl-wrap').innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th style="width:130px">事業本部</th>
+          <th style="width:110px">担当者</th>
+          <th style="width:80px">カテゴリ</th>
+          <th style="width:160px">機種名</th>
+          <th style="width:110px">管理No</th>
+          <th>携帯番号</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(d=>`
+          <tr>
+            <td><span class="badge ${HB_CLS[d.honbu]||'b-gray'}">${d.honbu||'—'}</span></td>
+            <td style="font-weight:600">${d.assignee||'<span style="color:#ccc">未割当</span>'}</td>
+            <td><span class="badge ${d.category==='iPhone'?'b-blue':d.category==='Android'?'b-green':'b-purple'}">${d.category||'—'}</span></td>
+            <td style="color:#666;font-size:12px">${d.name||'—'}</td>
+            <td style="font-family:monospace;font-size:11px;color:#aaa">${d.contract_no||'—'}</td>
+            <td>
+              <span class="phone-num">${d.phone}</span>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+load();
+</script>
+</body>
+</html>
