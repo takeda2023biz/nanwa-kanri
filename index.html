@@ -141,6 +141,10 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
         </div>
         <div class="form-row"><label>入社日</label><input id="ef-join" type="date"/></div>
         <div class="form-row"><label>生年月日</label><input id="ef-bd" type="date"/></div>
+        <div class="form-section">連絡先</div>
+        <div class="form-row full"><label>メールアドレス</label><input id="ef-email" placeholder="yamada@k-nanwa.co.jp"/></div>
+        <div class="form-row"><label>内線番号</label><input id="ef-ext" placeholder="1234"/></div>
+        <div class="form-row"><label>直通番号</label><input id="ef-direct" placeholder="099-xxx-xxxx"/></div>
         <div class="form-row full"><label>備考</label><textarea id="ef-note" placeholder="特記事項など"></textarea></div>
       </div>
     </div>
@@ -417,6 +421,10 @@ function showEmpDetail(id){
         <div><div style="font-size:11px;color:#888">性別</div><div style="font-size:13px;font-weight:600">${e.gender||'—'}</div></div>
         <div><div style="font-size:11px;color:#888">入社日</div><div style="font-size:13px;font-weight:600">${e.join_date||'—'}</div></div>
         <div><div style="font-size:11px;color:#888">生年月日</div><div style="font-size:13px;font-weight:600">${e.birthday||'—'}</div></div>
+        ${e.email?`<div style="grid-column:1/-1"><div style="font-size:11px;color:#888">メールアドレス</div><div style="font-size:13px;font-weight:600;font-family:monospace">${e.email}</div></div>`:''}
+        ${(e.phone_ext||e.phone_direct)?`
+        <div><div style="font-size:11px;color:#888">内線番号</div><div style="font-size:13px;font-weight:600">${e.phone_ext||'—'}</div></div>
+        <div><div style="font-size:11px;color:#888">直通番号</div><div style="font-size:13px;font-weight:600">${e.phone_direct||'—'}</div></div>`:''}
         ${e.note?`<div style="grid-column:1/-1"><div style="font-size:11px;color:#888">備考</div><div style="font-size:13px">${e.note}</div></div>`:''}
       </div>
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">割当機器（${devs.length}件）</div>
@@ -447,9 +455,12 @@ function openEmpModal(id){
     document.getElementById('ef-gender').value=e.gender||'男';
     document.getElementById('ef-join').value=e.join_date||'';
     document.getElementById('ef-bd').value=e.birthday||'';
+    document.getElementById('ef-email').value=e.email||'';
+    document.getElementById('ef-ext').value=e.phone_ext||'';
+    document.getElementById('ef-direct').value=e.phone_direct||'';
     document.getElementById('ef-note').value=e.note||'';
   } else {
-    ['ef-name','ef-yomi','ef-dept','ef-role','ef-join','ef-bd','ef-note'].forEach(i=>document.getElementById(i).value='');
+    ['ef-name','ef-yomi','ef-dept','ef-role','ef-join','ef-bd','ef-email','ef-ext','ef-direct','ef-note'].forEach(i=>document.getElementById(i).value='');
     document.getElementById('ef-honbu').selectedIndex=0;
     document.getElementById('ef-gender').selectedIndex=0;
   }
@@ -464,6 +475,9 @@ async function saveEmployee(){
     honbu:document.getElementById('ef-honbu').value,dept:document.getElementById('ef-dept').value.trim()||null,
     role:document.getElementById('ef-role').value.trim()||null,gender:document.getElementById('ef-gender').value||null,
     join_date:document.getElementById('ef-join').value||null,birthday:document.getElementById('ef-bd').value||null,
+    email:document.getElementById('ef-email').value.trim()||null,
+    phone_ext:document.getElementById('ef-ext').value.trim()||null,
+    phone_direct:document.getElementById('ef-direct').value.trim()||null,
     note:document.getElementById('ef-note').value.trim()||null,updated_at:new Date().toISOString()};
   let err;
   if(empEditId){({error:err}=await sb.from('employees').update(d).eq('id',empEditId));}
