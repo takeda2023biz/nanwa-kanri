@@ -31,6 +31,9 @@ body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:14px;
 .b-teal{background:#E1F5EE;color:#085041;}
 .b-gray{background:#F1EFE8;color:#5F5E5A;}
 .b-pink{background:#FBEAF0;color:#72243E;}
+.b-sha{background:#e8f4e8;color:#2e7d32;border:1px solid #a5d6a7;}
+.b-kojin{background:#fff3e0;color:#e65100;border:1px solid #ffcc80;}
+.b-wifi{background:#e8eaf6;color:#3949ab;}
 .controls{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
 .controls input,.controls select{height:36px;padding:0 12px;border-radius:8px;border:1px solid #d8d7d0;background:#fff;color:#1a1a1a;font-size:13px;font-family:inherit;}
 .controls input{flex:1;min-width:180px;}
@@ -53,7 +56,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
 .alert-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;}
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;}
 .modal-bg.open{display:flex;}
-.modal{background:#fff;border-radius:14px;width:580px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.15);}
+.modal{background:#fff;border-radius:14px;width:620px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.15);}
 .modal-header{padding:20px 24px 16px;border-bottom:1px solid #e8e7e0;display:flex;align-items:center;justify-content:space-between;}
 .modal-header h2{font-size:16px;font-weight:600;}
 .modal-close{width:32px;height:32px;border-radius:8px;border:1px solid #e8e7e0;background:#fff;cursor:pointer;font-size:18px;color:#666;}
@@ -83,6 +86,9 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
 .exp-bar{height:4px;background:#e8e7e0;border-radius:2px;overflow:hidden;margin-top:5px;}
 .exp-fill{height:100%;border-radius:2px;}
 .section-title{font-size:13px;font-weight:600;color:#555;margin:18px 0 8px;}
+.tab-bar{display:flex;gap:0;border-bottom:2px solid #e8e7e0;margin-bottom:16px;}
+.tab-btn{padding:8px 20px;font-size:13px;color:#888;cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:inherit;}
+.tab-btn.active{color:#1a1a1a;font-weight:600;border-bottom:2px solid #1a1a1a;}
 </style>
 </head>
 <body>
@@ -90,7 +96,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
 <div class="topbar">
   <div>
     <div class="topbar-title">管理本部 統合管理システム</div>
-    <div class="topbar-sub">社員 / 機器 / リース・レンタル / 携帯 一元管理</div>
+    <div class="topbar-sub">社員 / 機器 / リース・レンタル / 携帯・Wi-Fi 一元管理</div>
   </div>
   <div style="display:flex;align-items:center;gap:12px;">
     <span id="sync-status" style="font-size:11px;color:#aaa"></span>
@@ -169,13 +175,24 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
       <div class="form-grid">
         <div class="form-section">機器情報</div>
         <div class="form-row"><label>種別</label>
-          <select id="df-type"><option>リース</option><option>レンタル</option><option>携帯</option></select>
+          <select id="df-type" onchange="toggleDevFields()">
+            <option>リース</option><option>レンタル</option><option>携帯</option><option>Wi-Fi</option>
+          </select>
+        </div>
+        <div class="form-row"><label>区分</label>
+          <select id="df-ownership">
+            <option value="社給">社給</option><option value="個人">個人</option>
+          </select>
         </div>
         <div class="form-row"><label>カテゴリ</label>
-          <select id="df-cat"><option>PC</option><option>ディスプレイ</option><option>複合機</option><option>iPad</option><option>iPhone</option><option>Android</option><option>サーバー</option><option>ソフトウェア</option><option>その他</option></select>
+          <select id="df-cat">
+            <option>PC</option><option>ディスプレイ</option><option>複合機</option><option>iPad</option>
+            <option>iPhone</option><option>Android</option><option>Wi-Fiルーター</option>
+            <option>サーバー</option><option>ソフトウェア</option><option>その他</option>
+          </select>
         </div>
         <div class="form-row full"><label>機器名・型番 *</label><input id="df-name" placeholder="ThinkPad L13 Gen4"/></div>
-        <div class="form-row"><label>契約番号</label><input id="df-contract" placeholder="L26021575-001"/></div>
+        <div class="form-row"><label>契約番号 / 管理No</label><input id="df-contract" placeholder="L26021575-001"/></div>
         <div class="form-row"><label>資産番号(OIR)</label><input id="df-oir" placeholder="60354848"/></div>
         <div class="form-section">割当・期間</div>
         <div class="form-row"><label>事業本部</label>
@@ -192,7 +209,12 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
         <div class="form-row"><label>リース区分</label>
           <select id="df-ltype"><option value="">通常</option><option>再リース</option><option>延長</option></select>
         </div>
-        <div class="form-row full"><label>備考</label><textarea id="df-note" placeholder="設置場所・電話番号・メモなど"></textarea></div>
+        <!-- 携帯・Wi-Fi専用フィールド -->
+        <div class="form-section" id="df-mobile-section" style="display:none">携帯・Wi-Fi情報</div>
+        <div class="form-row" id="df-phone-row" style="display:none"><label>電話番号</label><input id="df-phone" placeholder="090-0000-0000"/></div>
+        <div class="form-row" id="df-plan-row" style="display:none"><label>プラン名</label><input id="df-plan" placeholder="データ無制限プラン"/></div>
+        <div class="form-row" id="df-data-row" style="display:none"><label>データ容量</label><input id="df-data" placeholder="無制限 / 30GB"/></div>
+        <div class="form-row full"><label>備考</label><textarea id="df-note" placeholder="設置場所・メモなど"></textarea></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -208,15 +230,14 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
 <div class="toast" id="toast"></div>
 
 <script>
-const SUPABASE_URL = 'https://cicxvcjnvkynhukbnrns.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_URL='https://cicxvcjnvkynhukbnrns.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-const TODAY = new Date();
-document.getElementById('today-label').textContent =
+const TODAY=new Date();
+document.getElementById('today-label').textContent=
   TODAY.getFullYear()+'年'+(TODAY.getMonth()+1)+'月'+TODAY.getDate()+'日 現在';
 
-// ── ユーティリティ ──
 const AV_COLORS=[
   {bg:'#E6F1FB',fg:'#0C447C'},{bg:'#E1F5EE',fg:'#085041'},{bg:'#FBEAF0',fg:'#72243E'},
   {bg:'#FAEEDA',fg:'#633806'},{bg:'#EEEDFE',fg:'#3C3489'},{bg:'#FAECE7',fg:'#712B13'},
@@ -251,10 +272,9 @@ function remain(end){
   return m>=12?Math.floor(m/12)+'年'+m%12+'ヶ月':m>0?m+'ヶ月':days+'日';
 }
 function toast(msg,ms=2200){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms);}
-function setSync(msg,color='#aaa'){document.getElementById('sync-status').style.color=color;document.getElementById('sync-status').textContent=msg;}
+function setSync(msg,color='#aaa'){const s=document.getElementById('sync-status');s.style.color=color;s.textContent=msg;}
 
-// ── データキャッシュ ──
-let EMPLOYEES=[], DEVICES=[];
+let EMPLOYEES=[],DEVICES=[];
 
 async function loadAll(){
   setSync('読み込み中...','#888');
@@ -269,7 +289,6 @@ async function loadAll(){
   return true;
 }
 
-// ── ページ切替 ──
 let currentPage='dashboard';
 async function showPage(id,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -293,7 +312,7 @@ function renderDashboard(){
   document.getElementById('page-dashboard').innerHTML=`
     <div class="stats" style="grid-template-columns:repeat(5,1fr)">
       <div class="stat"><div class="stat-label">社員数</div><div class="stat-value">${EMPLOYEES.length}</div><div class="stat-sub">6事業本部</div></div>
-      <div class="stat"><div class="stat-label">管理機器数</div><div class="stat-value">${DEVICES.length}</div><div class="stat-sub">リース・レンタル・携帯</div></div>
+      <div class="stat"><div class="stat-label">管理機器数</div><div class="stat-value">${DEVICES.length}</div><div class="stat-sub">リース・レンタル・携帯・Wi-Fi</div></div>
       <div class="stat"><div class="stat-label">月額合計（税抜）</div><div class="stat-value">${Math.round(totalM/1000)}千円</div><div class="stat-sub">${totalM.toLocaleString()}円</div></div>
       <div class="stat"><div class="stat-label" style="color:#854f0b">期限6ヶ月以内</div><div class="stat-value" style="color:#854f0b">${warn.length}</div></div>
       <div class="stat"><div class="stat-label" style="color:#a32d2d">期限切れ</div><div class="stat-value" style="color:#a32d2d">${danger.length}</div></div>
@@ -311,7 +330,8 @@ function renderDashboard(){
         <div style="font-size:13px;font-weight:600;margin-bottom:12px">機器種別内訳</div>
         ${[['リース',DEVICES.filter(d=>d.type==='リース').length,'#534AB7'],
            ['レンタル',DEVICES.filter(d=>d.type==='レンタル').length,'#1D9E75'],
-           ['携帯',DEVICES.filter(d=>d.type==='携帯').length,'#378ADD']].map(([t,n,c])=>`
+           ['携帯',DEVICES.filter(d=>d.type==='携帯').length,'#378ADD'],
+           ['Wi-Fi',DEVICES.filter(d=>d.type==='Wi-Fi').length,'#3949ab']].map(([t,n,c])=>`
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
             <div style="font-size:13px;font-weight:600;width:70px">${t}</div>
             <div style="flex:1;font-size:12px;color:#888">${n}件</div>
@@ -327,7 +347,7 @@ function renderDashboard(){
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.name}</div>
           <div style="font-size:11px;color:#888;margin-top:3px">
-            <span class="badge ${d.type==='リース'?'b-purple':d.type==='レンタル'?'b-teal':'b-blue'}">${d.type}</span>
+            <span class="badge ${d.type==='リース'?'b-purple':d.type==='レンタル'?'b-teal':d.type==='Wi-Fi'?'b-wifi':'b-blue'}">${d.type}</span>
             &nbsp;${d.contract_no||'—'}&nbsp;/&nbsp;${hbBadge(d.honbu)}&nbsp;/&nbsp;担当：${d.assignee||'未割当'}
           </div>
         </div>
@@ -430,7 +450,7 @@ function showEmpDetail(id){
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">割当機器（${devs.length}件）</div>
       ${devs.length?`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
         ${devs.map(d=>`<div class="device-card">
-          <div class="dc-label"><span class="badge ${d.type==='リース'?'b-purple':d.type==='レンタル'?'b-teal':'b-blue'}" style="font-size:10px">${d.type}</span> ${d.category||''}</div>
+          <div class="dc-label"><span class="badge ${d.type==='リース'?'b-purple':d.type==='レンタル'?'b-teal':d.type==='Wi-Fi'?'b-wifi':'b-blue'}" style="font-size:10px">${d.type}</span> ${d.category||''}</div>
           <div class="dc-val">${d.name}</div>
           <div class="dc-sub">${d.contract_no||''}</div>
           <div style="margin-top:6px">${lsBadge(d.end_date,d.lease_type)}</div>
@@ -514,11 +534,12 @@ function renderDevices(){
         <button class="btn btn-primary" onclick="openDevModal(null)">＋ 機器登録</button>
       </div>
     </div>
-    <div class="stats" style="grid-template-columns:repeat(4,1fr)">
+    <div class="stats" style="grid-template-columns:repeat(5,1fr)">
       <div class="stat"><div class="stat-label">総機器数</div><div class="stat-value">${DEVICES.length}</div></div>
       <div class="stat"><div class="stat-label">リース</div><div class="stat-value">${DEVICES.filter(d=>d.type==='リース').length}</div></div>
       <div class="stat"><div class="stat-label">レンタル</div><div class="stat-value">${DEVICES.filter(d=>d.type==='レンタル').length}</div></div>
       <div class="stat"><div class="stat-label">携帯</div><div class="stat-value">${DEVICES.filter(d=>d.type==='携帯').length}</div></div>
+      <div class="stat"><div class="stat-label">Wi-Fi</div><div class="stat-value">${DEVICES.filter(d=>d.type==='Wi-Fi').length}</div></div>
     </div>
     <div class="controls">
       <input type="text" placeholder="機器名・契約番号・担当者・資産番号で検索..." value="${devQ}" oninput="devQ=this.value;devPage=1;renderDevices()"/>
@@ -527,6 +548,7 @@ function renderDevices(){
         <option${devType==='リース'?' selected':''}>リース</option>
         <option${devType==='レンタル'?' selected':''}>レンタル</option>
         <option${devType==='携帯'?' selected':''}>携帯</option>
+        <option${devType==='Wi-Fi'?' selected':''}>Wi-Fi</option>
       </select>
       <select onchange="devHonbu=this.value;devPage=1;renderDevices()">
         <option value="">全事業本部</option>
@@ -542,19 +564,19 @@ function renderDevices(){
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>種別</th><th>カテゴリ</th><th>機器名</th><th>契約番号</th>
-          <th>資産番号(OIR)</th><th>担当者</th><th>事業本部</th>
-          <th>終了日</th><th>残期間</th><th>状態</th><th>月額</th>
+          <th>種別</th><th>区分</th><th>カテゴリ</th><th>機器名</th><th>契約番号/管理No</th>
+          <th>担当者</th><th>事業本部</th><th>開始日</th><th>終了日</th><th>残期間</th><th>状態</th><th>月額</th>
           <th style="width:60px"></th>
         </tr></thead>
         <tbody>${slice.map(d=>`<tr>
-          <td><span class="badge ${d.type==='リース'?'b-purple':d.type==='レンタル'?'b-teal':'b-blue'}">${d.type}</span></td>
+          <td><span class="badge ${d.type==='リース'?'b-purple':d.type==='レンタル'?'b-teal':d.type==='Wi-Fi'?'b-wifi':'b-blue'}">${d.type}</span></td>
+          <td><span class="badge ${(d.ownership||'社給')==='個人'?'b-kojin':'b-sha'}">${d.ownership||'社給'}</span></td>
           <td style="font-size:11px">${d.category||''}</td>
           <td style="font-weight:600">${d.name}</td>
           <td class="mono">${d.contract_no||'—'}</td>
-          <td class="mono">${d.oir_no||'—'}</td>
           <td>${d.assignee||'<span style="color:#ccc">未割当</span>'}</td>
           <td>${hbBadge(d.honbu)}</td>
+          <td class="mono">${d.start_date||'—'}</td>
           <td class="mono">${d.end_date||'—'}</td>
           <td style="font-size:12px">${remain(d.end_date)}</td>
           <td>${lsBadge(d.end_date,d.lease_type)}</td>
@@ -570,6 +592,15 @@ function renderDevices(){
   `;
 }
 
+function toggleDevFields(){
+  const t=document.getElementById('df-type').value;
+  const isMobile=t==='携帯'||t==='Wi-Fi';
+  document.getElementById('df-mobile-section').style.display=isMobile?'':'none';
+  document.getElementById('df-phone-row').style.display=t==='携帯'?'':'none';
+  document.getElementById('df-plan-row').style.display=isMobile?'':'none';
+  document.getElementById('df-data-row').style.display=isMobile?'':'none';
+}
+
 function openDevModal(id){
   devEditId=id;
   document.getElementById('dev-modal-title').textContent=id?'機器情報編集':'機器登録';
@@ -577,6 +608,7 @@ function openDevModal(id){
   if(id){
     const d=DEVICES.find(x=>x.id===id);
     document.getElementById('df-type').value=d.type||'リース';
+    document.getElementById('df-ownership').value=d.ownership||'社給';
     document.getElementById('df-cat').value=d.category||'PC';
     document.getElementById('df-name').value=d.name||'';
     document.getElementById('df-contract').value=d.contract_no||'';
@@ -587,14 +619,19 @@ function openDevModal(id){
     document.getElementById('df-end').value=d.end_date||'';
     document.getElementById('df-monthly').value=d.monthly||'';
     document.getElementById('df-ltype').value=d.lease_type||'';
+    document.getElementById('df-phone').value=d.phone||'';
+    document.getElementById('df-plan').value=d.plan||'';
+    document.getElementById('df-data').value=d.data_capacity||'';
     document.getElementById('df-note').value=d.note||'';
   } else {
-    ['df-name','df-contract','df-oir','df-assignee','df-start','df-end','df-monthly','df-note'].forEach(i=>document.getElementById(i).value='');
+    ['df-name','df-contract','df-oir','df-assignee','df-start','df-end','df-monthly','df-phone','df-plan','df-data','df-note'].forEach(i=>document.getElementById(i).value='');
     document.getElementById('df-type').selectedIndex=0;
+    document.getElementById('df-ownership').selectedIndex=0;
     document.getElementById('df-cat').selectedIndex=0;
     document.getElementById('df-honbu').selectedIndex=0;
     document.getElementById('df-ltype').selectedIndex=0;
   }
+  toggleDevFields();
   document.getElementById('dev-modal').classList.add('open');
 }
 function closeDevModal(){document.getElementById('dev-modal').classList.remove('open');}
@@ -602,7 +639,9 @@ function closeDevModal(){document.getElementById('dev-modal').classList.remove('
 async function saveDevice(){
   const name=document.getElementById('df-name').value.trim();
   if(!name){alert('機器名を入力してください');return;}
-  const d={type:document.getElementById('df-type').value,category:document.getElementById('df-cat').value,
+  const d={type:document.getElementById('df-type').value,
+    ownership:document.getElementById('df-ownership').value,
+    category:document.getElementById('df-cat').value,
     name,contract_no:document.getElementById('df-contract').value.trim()||null,
     oir_no:document.getElementById('df-oir').value.trim()||null,
     honbu:document.getElementById('df-honbu').value||null,
@@ -611,6 +650,9 @@ async function saveDevice(){
     end_date:document.getElementById('df-end').value||null,
     monthly:parseInt(document.getElementById('df-monthly').value)||0,
     lease_type:document.getElementById('df-ltype').value||null,
+    phone:document.getElementById('df-phone').value.trim()||null,
+    plan:document.getElementById('df-plan').value.trim()||null,
+    data_capacity:document.getElementById('df-data').value.trim()||null,
     note:document.getElementById('df-note').value.trim()||null,
     updated_at:new Date().toISOString()};
   let err;
@@ -629,8 +671,8 @@ async function deleteDevice(){
 }
 
 function exportDevCSV(){
-  const h=['種別','カテゴリ','機器名','契約番号','資産番号(OIR)','担当者','事業本部','開始日','終了日','月額','備考'];
-  const rows=DEVICES.map(d=>[d.type,d.category,d.name,d.contract_no,d.oir_no,d.assignee,d.honbu,d.start_date,d.end_date,d.monthly,d.note]);
+  const h=['種別','区分','カテゴリ','機器名','契約番号','資産番号(OIR)','担当者','事業本部','開始日','終了日','月額','プラン','データ容量','備考'];
+  const rows=DEVICES.map(d=>[d.type,d.ownership||'社給',d.category,d.name,d.contract_no,d.oir_no,d.assignee,d.honbu,d.start_date,d.end_date,d.monthly,d.plan,d.data_capacity,d.note]);
   const csv=[h,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='機器管理一覧.csv';a.click();
 }
@@ -640,17 +682,20 @@ function renderContracts(){
   const lease=DEVICES.filter(d=>d.type==='リース').sort((a,b)=>new Date(a.end_date||'9999')-new Date(b.end_date||'9999'));
   const rental=DEVICES.filter(d=>d.type==='レンタル').sort((a,b)=>new Date(a.end_date||'9999')-new Date(b.end_date||'9999'));
   const mobile=DEVICES.filter(d=>d.type==='携帯');
+  const wifi=DEVICES.filter(d=>d.type==='Wi-Fi');
   const lm=lease.reduce((s,d)=>s+(parseInt(d.monthly)||0),0);
   const rm=rental.reduce((s,d)=>s+(parseInt(d.monthly)||0),0);
   const makeTbl=(items,cols)=>`<div class="tbl-wrap" style="margin-bottom:20px;">
     <table><thead><tr>${cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead>
-    <tbody>${items.map(d=>`<tr>${cols.map(c=>`<td ${c[2]||''}>${c[1](d)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    <tbody>${items.length?items.map(d=>`<tr>${cols.map(c=>`<td ${c[2]||''}>${c[1](d)}</td>`).join('')}</tr>`).join('')
+    :`<tr><td colspan="${cols.length}" style="text-align:center;padding:2rem;color:#aaa">データなし</td></tr>`}</tbody></table></div>`;
   document.getElementById('page-contracts').innerHTML=`
     <div style="font-size:20px;font-weight:700;margin-bottom:14px">契約管理</div>
-    <div class="stats" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat"><div class="stat-label">リース 月額合計</div><div class="stat-value">${Math.round(lm/1000)}千円</div><div class="stat-sub">${lease.length}件 / 東京センチュリー</div></div>
+    <div class="stats" style="grid-template-columns:repeat(4,1fr)">
+      <div class="stat"><div class="stat-label">リース 月額合計</div><div class="stat-value">${Math.round(lm/1000)}千円</div><div class="stat-sub">${lease.length}件</div></div>
       <div class="stat"><div class="stat-label">レンタル 月額合計</div><div class="stat-value">${Math.round(rm/1000)}千円</div><div class="stat-sub">${rental.length}件</div></div>
-      <div class="stat"><div class="stat-label">携帯 管理台数</div><div class="stat-value">${mobile.length}</div><div class="stat-sub">社給端末</div></div>
+      <div class="stat"><div class="stat-label">携帯 管理台数</div><div class="stat-value">${mobile.length}</div><div class="stat-sub">社給＋個人</div></div>
+      <div class="stat"><div class="stat-label">Wi-Fi 管理台数</div><div class="stat-value">${wifi.length}</div></div>
     </div>
     <div class="section-title">リース契約一覧（期限順）</div>
     ${makeTbl(lease,[
@@ -658,6 +703,7 @@ function renderContracts(){
       ['物件名',d=>`<b>${d.name}</b>`,''],
       ['事業本部',d=>hbBadge(d.honbu),''],
       ['担当者',d=>d.assignee||'—',''],
+      ['開始日',d=>`<span class="mono">${d.start_date||'—'}</span>`,''],
       ['満了日',d=>`<span class="mono">${d.end_date||'—'}</span>`,''],
       ['残期間',d=>remain(d.end_date),'style="font-size:12px"'],
       ['状態',d=>lsBadge(d.end_date,d.lease_type),''],
@@ -670,18 +716,37 @@ function renderContracts(){
       ['資産番号(OIR)',d=>`<span class="mono">${d.oir_no||'—'}</span>`,''],
       ['担当者',d=>d.assignee||'—',''],
       ['事業本部',d=>hbBadge(d.honbu),''],
+      ['開始日',d=>`<span class="mono">${d.start_date||'—'}</span>`,''],
       ['終了日',d=>`<span class="mono">${d.end_date||'—'}</span>`,''],
       ['残期間',d=>remain(d.end_date),'style="font-size:12px"'],
       ['状態',d=>lsBadge(d.end_date),''],
     ])}
-    <div class="section-title">社給携帯一覧</div>
+    <div class="section-title">携帯一覧</div>
     ${makeTbl(mobile,[
       ['管理No',d=>`<span class="mono">${d.contract_no||'—'}</span>`,''],
+      ['区分',d=>`<span class="badge ${(d.ownership||'社給')==='個人'?'b-kojin':'b-sha'}">${d.ownership||'社給'}</span>`,''],
       ['機種名',d=>`<b>${d.name}</b>`,''],
       ['カテゴリ',d=>d.category||'—',''],
       ['担当者',d=>d.assignee||'—',''],
       ['事業本部',d=>hbBadge(d.honbu),''],
-      ['備考',d=>d.note||'—','style="font-size:11px;color:#888"'],
+      ['電話番号',d=>`<span class="mono">${d.phone||'—'}</span>`,''],
+      ['プラン',d=>d.plan||'—','style="font-size:11px"'],
+      ['データ容量',d=>d.data_capacity||'—','style="font-size:11px"'],
+      ['契約開始',d=>`<span class="mono">${d.start_date||'—'}</span>`,''],
+      ['契約終了',d=>`<span class="mono">${d.end_date||'—'}</span>`,''],
+    ])}
+    <div class="section-title">Wi-Fiルーター一覧</div>
+    ${makeTbl(wifi,[
+      ['管理No',d=>`<span class="mono">${d.contract_no||'—'}</span>`,''],
+      ['区分',d=>`<span class="badge ${(d.ownership||'社給')==='個人'?'b-kojin':'b-sha'}">${d.ownership||'社給'}</span>`,''],
+      ['機器名',d=>`<b>${d.name}</b>`,''],
+      ['担当者',d=>d.assignee||'—',''],
+      ['事業本部',d=>hbBadge(d.honbu),''],
+      ['プラン',d=>d.plan||'—','style="font-size:11px"'],
+      ['データ容量',d=>d.data_capacity||'—','style="font-size:11px"'],
+      ['契約開始',d=>`<span class="mono">${d.start_date||'—'}</span>`,''],
+      ['契約終了',d=>`<span class="mono">${d.end_date||'—'}</span>`,''],
+      ['状態',d=>lsBadge(d.end_date),''],
     ])}
   `;
 }
@@ -697,7 +762,7 @@ function renderAlerts(){
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:600">${d.name}</div>
         <div style="font-size:11px;color:#888;margin-top:3px">
-          <span class="badge ${d.type==='リース'?'b-purple':d.type==='レンタル'?'b-teal':'b-blue'}">${d.type}</span>
+          <span class="badge ${d.type==='リース'?'b-purple':d.type==='レンタル'?'b-teal':d.type==='Wi-Fi'?'b-wifi':'b-blue'}">${d.type}</span>
           &nbsp;${d.contract_no||'—'}&nbsp;/&nbsp;${hbBadge(d.honbu||'—')}&nbsp;/&nbsp;担当：${d.assignee||'未割当'}
         </div>
       </div>
@@ -730,68 +795,79 @@ function renderPager(pages,current,varName,renderFn){
   return h;
 }
 
-// ── 電話番号帳 ──
-let pbQ='',pbHonbu='';
+// ── 電話番号帳（管理画面用：社給＋個人、携帯＋Wi-Fi） ──
+let pbQ='',pbHonbu='',pbOwnership='',pbTab='mobile';
 function renderPhonebook(){
-  const mobiles=DEVICES.filter(d=>d.type==='携帯'&&d.phone);
-  const filtered=mobiles.filter(d=>{
-    const mq=!pbQ||(d.assignee||'').includes(pbQ)||(d.phone||'').includes(pbQ)||(d.honbu||'').includes(pbQ);
+  const allMobile=DEVICES.filter(d=>d.type==='携帯');
+  const allWifi=DEVICES.filter(d=>d.type==='Wi-Fi');
+  const items=(pbTab==='mobile'?allMobile:allWifi).filter(d=>{
+    const mq=!pbQ||(d.assignee||'').includes(pbQ)||(d.phone||'').includes(pbQ)||(d.honbu||'').includes(pbQ)||(d.yomi||'').includes(pbQ);
     const mh=!pbHonbu||d.honbu===pbHonbu;
-    return mq&&mh;
-  }).sort((a,b)=>(a.honbu||'').localeCompare(b.honbu||'','ja')||(a.assignee||'').localeCompare(b.assignee||'','ja'));
-  const honbus=[...new Set(mobiles.map(d=>d.honbu).filter(Boolean))];
+    const mo=!pbOwnership||(d.ownership||'社給')===pbOwnership;
+    return mq&&mh&&mo;
+  }).sort((a,b)=>(a.yomi||a.assignee||'').localeCompare(b.yomi||b.assignee||'','ja'));
+  const honbus=[...new Set([...allMobile,...allWifi].map(d=>d.honbu).filter(Boolean))];
+  const isMobile=pbTab==='mobile';
   document.getElementById('page-phonebook').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div>
         <div style="font-size:20px;font-weight:700">電話番号帳</div>
-        <div style="font-size:12px;color:#888;margin-top:3px">社給携帯 — 電話番号一覧</div>
+        <div style="font-size:12px;color:#888;margin-top:3px">社給・個人 — 携帯・Wi-Fi管理</div>
       </div>
       <button class="btn" onclick="exportPhoneCSV()">CSVエクスポート</button>
     </div>
+    <div class="tab-bar">
+      <button class="tab-btn${pbTab==='mobile'?' active':''}" onclick="pbTab='mobile';renderPhonebook()">📱 携帯（${allMobile.length}件）</button>
+      <button class="tab-btn${pbTab==='wifi'?' active':''}" onclick="pbTab='wifi';renderPhonebook()">📡 Wi-Fiルーター（${allWifi.length}件）</button>
+    </div>
     <div class="controls">
-      <input type="text" placeholder="担当者名・電話番号・事業本部で検索..." value="${pbQ}"
-        oninput="pbQ=this.value;renderPhonebook()"/>
+      <input type="text" placeholder="担当者名・電話番号・事業本部で検索..." value="${pbQ}" oninput="pbQ=this.value;renderPhonebook()"/>
       <select onchange="pbHonbu=this.value;renderPhonebook()">
         <option value="">全事業本部</option>
         ${honbus.map(h=>`<option value="${h}"${pbHonbu===h?' selected':''}>${h}</option>`).join('')}
       </select>
+      <select onchange="pbOwnership=this.value;renderPhonebook()">
+        <option value="">社給＋個人</option>
+        <option value="社給"${pbOwnership==='社給'?' selected':''}>社給のみ</option>
+        <option value="個人"${pbOwnership==='個人'?' selected':''}>個人のみ</option>
+      </select>
     </div>
-    <div style="font-size:12px;color:#888;margin-bottom:8px">${filtered.length}件表示</div>
+    <div style="font-size:12px;color:#888;margin-bottom:8px">${items.length}件表示</div>
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th style="width:130px">事業本部</th>
-          <th style="width:120px">担当者</th>
-          <th style="width:80px">カテゴリ</th>
-          <th style="width:160px">機種名</th>
-          <th style="width:120px">契約番号（管理No）</th>
-          <th style="width:140px">携帯番号</th>
+          <th>事業本部</th><th>担当者</th><th>区分</th><th>カテゴリ</th><th>機種名</th>
+          <th>管理No</th>${isMobile?'<th>電話番号</th>':''}
+          <th>プラン</th><th>データ容量</th><th>契約開始</th><th>契約終了</th><th>状態</th>
         </tr></thead>
-        <tbody>${filtered.length?filtered.map(d=>`<tr>
+        <tbody>${items.length?items.map(d=>`<tr>
           <td>${hbBadge(d.honbu)}</td>
           <td style="font-weight:600">${d.assignee||'<span style="color:#ccc">未割当</span>'}</td>
-          <td><span class="badge ${d.category==='iPhone'?'b-blue':d.category==='Android'?'b-green':'b-purple'}">${d.category||'—'}</span></td>
-          <td>${d.name}</td>
+          <td><span class="badge ${(d.ownership||'社給')==='個人'?'b-kojin':'b-sha'}">${d.ownership||'社給'}</span></td>
+          <td><span class="badge ${d.category==='iPhone'?'b-blue':d.category==='Android'?'b-green':'b-wifi'}">${d.category||'—'}</span></td>
+          <td style="font-size:12px">${d.name||'—'}</td>
           <td class="mono">${d.contract_no||'—'}</td>
-          <td>
-            <span style="font-family:monospace;font-size:13px;font-weight:600;letter-spacing:.04em">${d.phone}</span>
-            <a href="tel:${d.phone}" style="margin-left:8px;font-size:11px;color:#378ADD;text-decoration:none">発信</a>
-          </td>
-        </tr>`).join(''):`<tr><td colspan="6" style="text-align:center;padding:2.5rem;color:#aaa">該当なし</td></tr>`}</tbody>
+          ${isMobile?`<td><span style="font-family:monospace;font-size:13px;font-weight:600">${d.phone||'—'}</span></td>`:''}
+          <td style="font-size:11px">${d.plan||'—'}</td>
+          <td style="font-size:11px">${d.data_capacity||'—'}</td>
+          <td class="mono">${d.start_date||'—'}</td>
+          <td class="mono">${d.end_date||'—'}</td>
+          <td>${lsBadge(d.end_date,d.lease_type)}</td>
+        </tr>`).join(''):`<tr><td colspan="${isMobile?12:11}" style="text-align:center;padding:2.5rem;color:#aaa">該当なし</td></tr>`}</tbody>
       </table>
     </div>
   `;
 }
 
 function exportPhoneCSV(){
-  const mobiles=DEVICES.filter(d=>d.type==='携帯'&&d.phone)
-    .sort((a,b)=>(a.honbu||'').localeCompare(b.honbu||'','ja'));
-  const h=['事業本部','担当者','カテゴリ','機種名','契約番号（管理No）','携帯番号'];
-  const rows=mobiles.map(d=>[d.honbu,d.assignee,d.category,d.name,d.contract_no,d.phone]);
+  const items=DEVICES.filter(d=>d.type===(pbTab==='mobile'?'携帯':'Wi-Fi'));
+  const h=['事業本部','担当者','区分','カテゴリ','機種名','管理No','電話番号','プラン','データ容量','契約開始','契約終了'];
+  const rows=items.map(d=>[d.honbu,d.assignee,d.ownership||'社給',d.category,d.name,d.contract_no,d.phone||'',d.plan||'',d.data_capacity||'',d.start_date||'',d.end_date||'']);
   const csv=[h,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
-  a.download='電話番号帳.csv';a.click();
+  a.download=pbTab==='mobile'?'携帯一覧.csv':'WiFi一覧.csv';
+  a.click();
 }
 
 // ── 初期ロード ──
@@ -799,7 +875,7 @@ function exportPhoneCSV(){
   const ok=await loadAll();
   if(ok) renderDashboard();
   else document.getElementById('page-dashboard').innerHTML=
-    '<div style="padding:40px;color:#a32d2d">Supabaseへの接続に失敗しました。URLとキーを確認してください。</div>';
+    '<div style="padding:40px;color:#a32d2d">Supabaseへの接続に失敗しました。</div>';
 })();
 </script>
 </body>
