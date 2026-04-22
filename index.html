@@ -46,6 +46,11 @@ body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:14px;
 .tbl-wrap{border:1px solid #e8e7e0;border-radius:10px;overflow:auto;margin-bottom:12px;}
 table{width:100%;border-collapse:collapse;font-size:12px;}
 thead th{background:#f9f9f7;padding:9px 12px;text-align:left;font-weight:600;font-size:11px;color:#666;border-bottom:1px solid #e8e7e0;white-space:nowrap;}
+thead th.sortable{cursor:pointer;user-select:none;}
+thead th.sortable:hover{background:#f0f0ec;color:#1a1a1a;}
+thead th.sort-asc,thead th.sort-desc{color:#1a1a1a;background:#ededea;}
+.sort-icon{margin-left:4px;font-size:10px;color:#bbb;}
+th.sort-asc .sort-icon,th.sort-desc .sort-icon{color:#1a1a1a;}
 tbody tr{border-bottom:1px solid #e8e7e0;}
 tbody tr:last-child{border-bottom:none;}
 tbody tr:hover{background:#fafaf8;}
@@ -797,17 +802,64 @@ function renderPager(pages,current,varName,renderFn){
 
 // ── 電話番号帳（管理画面用：社給＋個人、携帯＋Wi-Fi） ──
 let pbQ='',pbHonbu='',pbOwnership='',pbTab='mobile';
+let pbSortCol='honbu',pbSortDir=1;  // ソート状態
+
+// ソートキーに対応するデータ値を返す
+function pbSortVal(d,col){
+  switch(col){
+    case 'honbu':    return d.honbu||'';
+    case 'assignee': return d.yomi||d.assignee||'';
+    case 'ownership':return d.ownership||'社給';
+    case 'category': return d.category||'';
+    case 'name':     return d.name||'';
+    case 'contract_no': return d.contract_no||'';
+    case 'phone':    return d.phone||'';
+    case 'plan':     return d.plan||'';
+    case 'data_capacity': return d.data_capacity||'';
+    case 'start_date':   return d.start_date||'';
+    case 'end_date':     return d.end_date||'';
+    default: return '';
+  }
+}
+
+function pbSetSort(col){
+  if(pbSortCol===col) pbSortDir=-pbSortDir;
+  else { pbSortCol=col; pbSortDir=1; }
+  renderPhonebook();
+}
+
+function pbThIcon(col){
+  const active=pbSortCol===col;
+  const cls='sortable'+(active?(pbSortDir===1?' sort-asc':' sort-desc'):'');
+  const icon=active?(pbSortDir===1?'▲':'▼'):'⇅';
+  return `class="${cls}" onclick="pbSetSort('${col}')">${col!=='honbu'?'':''}<span class="sort-icon">${icon}</span`;
+}
+
+// ソートアイコン付き <th> を生成するヘルパー
+function pbTh(label,col){
+  const active=pbSortCol===col;
+  const cls='sortable'+(active?(pbSortDir===1?' sort-asc':' sort-desc'):'');
+  const icon=active?(pbSortDir===1?'▲':'▼'):'⇅';
+  return `<th class="${cls}" onclick="pbSetSort('${col}')">${label} <span class="sort-icon">${icon}</span></th>`;
+}
+
 function renderPhonebook(){
   const allMobile=DEVICES.filter(d=>d.type==='携帯');
   const allWifi=DEVICES.filter(d=>d.type==='Wi-Fi');
-  const items=(pbTab==='mobile'?allMobile:allWifi).filter(d=>{
+  const isMobile=pbTab==='mobile';
+  const items=(isMobile?allMobile:allWifi).filter(d=>{
     const mq=!pbQ||(d.assignee||'').includes(pbQ)||(d.phone||'').includes(pbQ)||(d.honbu||'').includes(pbQ)||(d.yomi||'').includes(pbQ);
     const mh=!pbHonbu||d.honbu===pbHonbu;
     const mo=!pbOwnership||(d.ownership||'社給')===pbOwnership;
     return mq&&mh&&mo;
-  }).sort((a,b)=>(a.yomi||a.assignee||'').localeCompare(b.yomi||b.assignee||'','ja'));
+  }).sort((a,b)=>{
+    const va=pbSortVal(a,pbSortCol);
+    const vb=pbSortVal(b,pbSortCol);
+    // 日付列は文字列比較でOK（YYYY-MM-DD形式）
+    const cmp=va.localeCompare(vb,'ja',{numeric:true});
+    return cmp*pbSortDir;
+  });
   const honbus=[...new Set([...allMobile,...allWifi].map(d=>d.honbu).filter(Boolean))];
-  const isMobile=pbTab==='mobile';
   document.getElementById('page-phonebook').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div>
@@ -817,8 +869,8 @@ function renderPhonebook(){
       <button class="btn" onclick="exportPhoneCSV()">CSVエクスポート</button>
     </div>
     <div class="tab-bar">
-      <button class="tab-btn${pbTab==='mobile'?' active':''}" onclick="pbTab='mobile';renderPhonebook()">📱 携帯（${allMobile.length}件）</button>
-      <button class="tab-btn${pbTab==='wifi'?' active':''}" onclick="pbTab='wifi';renderPhonebook()">📡 Wi-Fiルーター（${allWifi.length}件）</button>
+      <button class="tab-btn${pbTab==='mobile'?' active':''}" onclick="pbTab='mobile';pbSortCol='honbu';pbSortDir=1;renderPhonebook()">📱 携帯（${allMobile.length}件）</button>
+      <button class="tab-btn${pbTab==='wifi'?' active':''}" onclick="pbTab='wifi';pbSortCol='honbu';pbSortDir=1;renderPhonebook()">📡 Wi-Fiルーター（${allWifi.length}件）</button>
     </div>
     <div class="controls">
       <input type="text" placeholder="担当者名・電話番号・事業本部で検索..." value="${pbQ}" oninput="pbQ=this.value;renderPhonebook()"/>
@@ -836,9 +888,18 @@ function renderPhonebook(){
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>事業本部</th><th>担当者</th><th>区分</th><th>カテゴリ</th><th>機種名</th>
-          <th>管理No</th>${isMobile?'<th>電話番号</th>':''}
-          <th>プラン</th><th>データ容量</th><th>契約開始</th><th>契約終了</th><th>状態</th>
+          ${pbTh('事業本部','honbu')}
+          ${pbTh('担当者','assignee')}
+          ${pbTh('区分','ownership')}
+          ${pbTh('カテゴリ','category')}
+          ${pbTh('機種名','name')}
+          ${pbTh('管理No','contract_no')}
+          ${isMobile?pbTh('電話番号','phone'):''}
+          ${pbTh('プラン','plan')}
+          ${pbTh('データ容量','data_capacity')}
+          ${pbTh('契約開始','start_date')}
+          ${pbTh('契約終了','end_date')}
+          <th>状態</th>
         </tr></thead>
         <tbody>${items.length?items.map(d=>`<tr>
           <td>${hbBadge(d.honbu)}</td>
