@@ -2,83 +2,68 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>社給携帯 電話番号帳</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>電話番号帳 | 南和グループ</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:14px;background:#f5f5f3;color:#1a1a1a;min-height:100vh;}
-.topbar{background:#fff;border-bottom:1px solid #e0dfd8;padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:52px;position:sticky;top:0;z-index:100;}
-.topbar-title{font-size:16px;font-weight:600;}
-.topbar-sub{font-size:11px;color:#888;margin-top:2px;}
-.main{padding:20px;max-width:900px;margin:0 auto;}
-.controls{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
-.controls input,.controls select{height:40px;padding:0 14px;border-radius:10px;border:1px solid #d8d7d0;background:#fff;color:#1a1a1a;font-size:14px;font-family:inherit;}
-.controls input{flex:1;min-width:200px;}
-.controls input:focus,.controls select:focus{outline:none;border-color:#888;}
-.count{font-size:12px;color:#888;margin-bottom:10px;}
-.tbl-wrap{border:1px solid #e8e7e0;border-radius:12px;overflow:auto;background:#fff;}
-table{width:100%;border-collapse:collapse;font-size:13px;}
-thead th{background:#f9f9f7;padding:10px 14px;text-align:left;font-weight:600;font-size:12px;color:#666;border-bottom:1px solid #e8e7e0;white-space:nowrap;}
-tbody tr{border-bottom:1px solid #f0efe8;}
-tbody tr:last-child{border-bottom:none;}
-tbody tr:hover{background:#fafaf8;}
-tbody td{padding:12px 14px;vertical-align:middle;}
-.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;}
-.b-kanri{background:#1a2d5a;color:#fff;}
-.b-energy{background:#f5c400;color:#5a3d00;}
-.b-kankyo{background:#1a6fc4;color:#fff;}
-.b-eisei{background:#d94040;color:#fff;}
-.b-kensetsu{background:#2e7d32;color:#fff;}
-.b-zairyo{background:#0097a7;color:#fff;}
-.b-gray{background:#F1EFE8;color:#5F5E5A;}
-.b-iphone{background:#E6F1FB;color:#0C447C;}
-.b-android{background:#EAF3DE;color:#27500A;}
-.b-ipad{background:#EEEDFE;color:#3C3489;}
-.phone-num{font-family:monospace;font-size:15px;font-weight:700;letter-spacing:.04em;color:#1a1a1a;}
-.call-btn{display:inline-block;padding:5px 14px;border-radius:20px;background:#1a1a1a;color:#fff;font-size:12px;font-weight:600;text-decoration:none;margin-left:10px;}
-.call-btn:hover{background:#333;}
-.loading{text-align:center;padding:60px;color:#888;}
-.empty{text-align:center;padding:60px;color:#aaa;font-size:14px;}
-@media(max-width:600px){
-  .controls{flex-direction:column;}
-  .controls input,.controls select{width:100%;}
-  table{font-size:12px;}
-  .phone-num{font-size:13px;}
-  thead th:nth-child(3),tbody td:nth-child(3){display:none;}
-}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f5f5;color:#333}
+header{background:#1a2d5a;color:#fff;padding:16px 24px}
+header h1{font-size:20px;font-weight:700}
+header p{font-size:12px;opacity:.7;margin-top:2px}
+.toolbar{background:#fff;border-bottom:1px solid #e0e0e0;padding:12px 24px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.toolbar input{flex:1;min-width:200px;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px}
+.toolbar select{padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;background:#fff}
+.count{padding:8px 24px;font-size:12px;color:#888}
+.tbl-wrap{padding:0 24px 24px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+thead{background:#f8f8f8}
+th{padding:10px 12px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #eee;cursor:pointer;white-space:nowrap;user-select:none}
+th:hover{background:#f0f0f0}
+td{padding:10px 12px;font-size:13px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafafa}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.b-kanri{background:#1a2d5a;color:#fff}
+.b-energy{background:#f5c400;color:#5a3d00}
+.b-kankyo{background:#1a6fc4;color:#fff}
+.b-eisei{background:#d94040;color:#fff}
+.b-kensetsu{background:#2e7d32;color:#fff}
+.b-zairyo{background:#0097a7;color:#fff}
+.b-gray{background:#F1EFE8;color:#5F5E5A}
+.b-iphone{background:#E6F1FB;color:#0C447C}
+.b-android{background:#EAF3DE;color:#27500A}
+.b-ipad{background:#EEEDFE;color:#3C3489}
+.b-sha{background:#e8f4e8;color:#2e7d32;border:1px solid #a5d6a7}
+.b-kojin{background:#fff3e0;color:#e65100;border:1px solid #ffcc80}
+.phone-num{font-family:monospace;font-size:13px;font-weight:600;letter-spacing:.5px}
+.empty{padding:40px;text-align:center;color:#aaa;font-size:14px}
+.export-btn{padding:8px 16px;background:#1a2d5a;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap}
+.export-btn:hover{background:#2a3d6a}
 </style>
 </head>
 <body>
-
-<div class="topbar">
-  <div>
-    <div class="topbar-title">社給携帯 電話番号帳</div>
-    <div class="topbar-sub" id="today-label"></div>
-  </div>
+<header>
+  <h1>電話番号帳</h1>
+  <p id="subtitle">社給携帯 — 電話番号一覧</p>
+</header>
+<div class="toolbar">
+  <input type="text" id="search" placeholder="担当者名・電話番号・事業本部で検索..." oninput="render()">
+  <select id="f-honbu" onchange="render()"><option value="">全事業本部</option></select>
+  <select id="f-ownership" onchange="updateSubtitle();render()">
+    <option value="">社給＋個人</option>
+    <option value="社給">社給のみ</option>
+    <option value="個人">個人のみ</option>
+  </select>
+  <button class="export-btn" onclick="exportCSV()">CSVエクスポート</button>
 </div>
-
-<div class="main">
-  <div class="controls">
-    <input type="text" id="search" placeholder="担当者名・電話番号で検索..." oninput="render()"/>
-    <select id="f-honbu" onchange="render()">
-      <option value="">全事業本部</option>
-    </select>
-  </div>
-  <div class="count" id="count"></div>
-  <div class="tbl-wrap" id="tbl-wrap">
-    <div class="loading">読み込み中...</div>
-  </div>
-</div>
+<div class="count" id="count"></div>
+<div class="tbl-wrap" id="tbl-wrap"><div class="empty">読み込み中...</div></div>
 
 <script>
 const SUPABASE_URL = 'https://cicxvcjnvkynhukbnrns.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-const TODAY = new Date();
-document.getElementById('today-label').textContent =
-  TODAY.getFullYear()+'年'+(TODAY.getMonth()+1)+'月'+TODAY.getDate()+'日 現在';
 
 const HB_CLS = {
   '管理本部':'b-kanri',
@@ -90,26 +75,16 @@ const HB_CLS = {
 };
 
 let DATA = [];
-let sortCol = 'honbu', sortDir = 1;
-
-function sortBy(col){
-  if(sortCol === col) sortDir = -sortDir;
-  else { sortCol = col; sortDir = 1; }
-  render();
-}
-function si(col){
-  if(sortCol !== col) return '<span style="color:#ccc;margin-left:4px;font-size:10px">▲▼</span>';
-  return sortDir===1
-    ? '<span style="margin-left:4px;font-size:10px">▲</span>'
-    : '<span style="margin-left:4px;font-size:10px">▼</span>';
-}
+let sortCol = 'yomi', sortDir = 1;
 
 async function load(){
   const {data, error} = await sb
     .from('devices')
-    .select('honbu, assignee, yomi, category, name, contract_no, phone')
+    .select('honbu, assignee, yomi, category, name, contract_no, phone, ownership')
     .eq('type','携帯')
-    .not('phone','is',null);
+    .not('phone','is',null)
+    .order('honbu')
+    .order('yomi');
   if(error){
     document.getElementById('tbl-wrap').innerHTML=
       '<div class="empty">データの読み込みに失敗しました</div>';
@@ -128,21 +103,45 @@ async function load(){
   render();
 }
 
+function updateSubtitle(){
+  const ow = document.getElementById('f-ownership').value;
+  const map = {'':'社給＋個人携帯 — 電話番号一覧','社給':'社給携帯 — 電話番号一覧','個人':'個人携帯 — 電話番号一覧'};
+  document.getElementById('subtitle').textContent = map[ow];
+}
+
+function sortBy(col){
+  if(sortCol === col) sortDir = -sortDir;
+  else { sortCol = col; sortDir = 1; }
+  render();
+}
+
+function sortIcon(col){
+  if(sortCol !== col) return '<span style="color:#ccc;margin-left:4px">↕</span>';
+  return sortDir === 1
+    ? '<span style="margin-left:4px">▲</span>'
+    : '<span style="margin-left:4px">▼</span>';
+}
+
 function render(){
   const q = document.getElementById('search').value.trim();
   const hb = document.getElementById('f-honbu').value;
+  const ow = document.getElementById('f-ownership').value;
 
-  const filtered = DATA.filter(d=>{
+  let filtered = DATA.filter(d=>{
     const mq = !q ||
       (d.assignee||'').includes(q) ||
       (d.yomi||'').includes(q) ||
-      (d.phone||'').includes(q);
+      (d.phone||'').includes(q) ||
+      (d.honbu||'').includes(q);
     const mh = !hb || d.honbu === hb;
-    return mq && mh;
-  }).sort((a,b)=>{
-    // 担当者ソートはヨミガナ基準
-    const key = sortCol === 'assignee' ? 'yomi' : sortCol;
-    const av = a[key]||'', bv = b[key]||'';
+    const mo = !ow || (d.ownership||'社給') === ow;
+    return mq && mh && mo;
+  });
+
+  // ソート
+  filtered.sort((a,b)=>{
+    let av = a[sortCol]||'', bv = b[sortCol]||'';
+    if(sortCol === 'assignee') { av = a.yomi||''; bv = b.yomi||''; }
     return av < bv ? -sortDir : av > bv ? sortDir : 0;
   });
 
@@ -158,13 +157,13 @@ function render(){
     <table>
       <thead>
         <tr>
-          <th style="width:160px;cursor:pointer;user-select:none" onclick="sortBy('honbu')">事業本部${si('honbu')}</th>
-          <th style="width:110px;cursor:pointer;user-select:none" onclick="sortBy('assignee')">担当者${si('assignee')}</th>
-          <th style="width:120px">カナ</th>
-          <th style="width:80px;cursor:pointer;user-select:none" onclick="sortBy('category')">カテゴリ${si('category')}</th>
-          <th style="width:160px;cursor:pointer;user-select:none" onclick="sortBy('name')">機種名${si('name')}</th>
-          <th style="width:110px;cursor:pointer;user-select:none" onclick="sortBy('contract_no')">管理No${si('contract_no')}</th>
-          <th style="cursor:pointer;user-select:none" onclick="sortBy('phone')">携帯番号${si('phone')}</th>
+          <th style="width:170px" onclick="sortBy('honbu')">事業本部${sortIcon('honbu')}</th>
+          <th style="width:110px" onclick="sortBy('assignee')">担当者${sortIcon('assignee')}</th>
+          <th style="width:70px" onclick="sortBy('ownership')">区分${sortIcon('ownership')}</th>
+          <th style="width:80px" onclick="sortBy('category')">カテゴリ${sortIcon('category')}</th>
+          <th style="width:160px" onclick="sortBy('name')">機種名${sortIcon('name')}</th>
+          <th style="width:110px" onclick="sortBy('contract_no')">契約番号（管理No）${sortIcon('contract_no')}</th>
+          <th onclick="sortBy('phone')">携帯番号${sortIcon('phone')}</th>
         </tr>
       </thead>
       <tbody>
@@ -172,17 +171,36 @@ function render(){
           <tr>
             <td><span class="badge ${HB_CLS[d.honbu]||'b-gray'}">${d.honbu||'—'}</span></td>
             <td style="font-weight:600">${d.assignee||'<span style="color:#ccc">未割当</span>'}</td>
-            <td style="font-size:11px;color:#888">${d.yomi||''}</td>
+            <td><span class="badge ${(d.ownership||'社給')==='個人'?'b-kojin':'b-sha'}">${d.ownership||'社給'}</span></td>
             <td><span class="badge ${d.category==='iPhone'?'b-iphone':d.category==='Android'?'b-android':'b-ipad'}">${d.category||'—'}</span></td>
-            <td style="color:#666;font-size:12px">${d.name||'—'}</td>
+            <td style="color:#555;font-size:12px">${d.name||'—'}</td>
             <td style="font-family:monospace;font-size:12px;color:#444;font-weight:600">${d.contract_no||'—'}</td>
-            <td>
-              <span class="phone-num">${d.phone}</span>
-            </td>
+            <td><span class="phone-num">${d.phone||'—'}</span></td>
           </tr>`).join('')}
       </tbody>
     </table>
   `;
+}
+
+function exportCSV(){
+  const q = document.getElementById('search').value.trim();
+  const hb = document.getElementById('f-honbu').value;
+  const ow = document.getElementById('f-ownership').value;
+  const filtered = DATA.filter(d=>{
+    const mq = !q || (d.assignee||'').includes(q) || (d.phone||'').includes(q) || (d.honbu||'').includes(q);
+    const mh = !hb || d.honbu === hb;
+    const mo = !ow || (d.ownership||'社給') === ow;
+    return mq && mh && mo;
+  });
+  const rows = [['事業本部','担当者','区分','カテゴリ','機種名','管理No','携帯番号']];
+  filtered.forEach(d=>rows.push([d.honbu,d.assignee,d.ownership||'社給',d.category,d.name,d.contract_no,d.phone]));
+  const csv = rows.map(r=>r.map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const bom = '\uFEFF';
+  const blob = new Blob([bom+csv],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '電話番号帳.csv';
+  a.click();
 }
 
 load();
