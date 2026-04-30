@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アカウント情報照会 | 南和グループ</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
+
+  :root {
+    --primary: #1a3a5c;
+    --accent: #2e7d9e;
+    --bg: #f4f6f9;
+    --card: #ffffff;
+    --text: #1a1a2e;
+    --muted: #6b7a8d;
+    --border: #dde3ea;
+    --success: #2d7a4f;
+    --error: #c0392b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    background: var(--primary);
+    color: white;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+
+  header .logo {
+    width: 36px; height: 36px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  header h1 { font-size: 16px; font-weight: 500; letter-spacing: 0.05em; }
+  header p { font-size: 11px; opacity: 0.65; margin-top: 2px; }
+
+  main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+  }
+
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    padding: 40px;
+    width: 100%;
+    max-width: 440px;
+  }
+
+  .card-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 6px;
+  }
+
+  .card-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 28px;
+    line-height: 1.6;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.05em;
+  }
+
+  input[type="email"],
+  input[type="text"] {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--text);
+    background: #fafbfc;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  input:focus { border-color: var(--accent); background: white; }
+
+  .btn {
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 16px;
+  }
+
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+  }
+  .btn-primary:hover { background: var(--accent); }
+  .btn-primary:disabled { background: #b0bec5; cursor: not-allowed; }
+
+  .msg {
+    margin-top: 14px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    display: none;
+  }
+  .msg.show { display: block; }
+  .msg.success { background: #e8f5ee; color: var(--success); border: 1px solid #b2dfce; }
+  .msg.error { background: #fdecea; color: var(--error); border: 1px solid #f5c6c2; }
+  .msg.info { background: #e3f0f7; color: var(--accent); border: 1px solid #b3d4e8; }
+
+  /* ステップ表示 */
+  .step { display: none; }
+  .step.active { display: block; }
+
+  .pin-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+    text-align: center;
+  }
+
+  /* 結果表示 */
+  #result-section { display: none; }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-header .avatar {
+    width: 44px; height: 44px;
+    background: var(--primary);
+    border-radius: 50%;
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700;
+  }
+
+  .result-header .name { font-size: 16px; font-weight: 700; }
+  .result-header .dept { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .service-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    background: #fafbfc;
+  }
+
+  .service-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .service-name::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid #eef0f3;
+    font-size: 13px;
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { color: var(--muted); font-size: 12px; }
+  .info-value {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .copy-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
+
+  .pw-mask { font-family: monospace; letter-spacing: 2px; }
+
+  .toggle-pw {
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); font-size: 12px; padding: 0;
+  }
+
+  .logout-btn {
+    margin-top: 20px;
+    width: 100%;
+    padding: 10px;
+    background: none;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .logout-btn:hover { border-color: var(--error); color: var(--error); }
+
+  .loading { text-align: center; color: var(--muted); font-size: 13px; padding: 20px 0; }
+
+  footer {
+    text-align: center;
+    padding: 16px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🔐</div>
+  <div>
+    <h1>アカウント情報照会</h1>
+    <p>南和グループ 管理本部</p>
+  </div>
+</header>
+
+<main>
+  <!-- ログイン前フォーム -->
+  <div class="card" id="login-card">
+
+    <!-- Step 1: メールアドレス入力 -->
+    <div class="step active" id="step1">
+      <div class="card-title">本人確認</div>
+      <div class="card-sub">登録されているメールアドレスを入力してください。<br>ワンタイムPIN（6桁）をお送りします。</div>
+
+      <label>メールアドレス</label>
+      <input type="email" id="email-input" placeholder="your@k-nanwa.co.jp" />
+
+      <button class="btn btn-primary" id="send-pin-btn" onclick="sendPin()">PINを送信する</button>
+      <div class="msg" id="msg1"></div>
+    </div>
+
+    <!-- Step 2: PIN入力 -->
+    <div class="step" id="step2">
+      <div class="card-title">PIN入力</div>
+      <div class="card-sub" id="pin-desc">メールに送信された6桁のPINを入力してください。</div>
+
+      <label>ワンタイムPIN（6桁）</label>
+      <input type="text" id="pin-input" placeholder="000000" maxlength="6" inputmode="numeric" />
+      <div class="pin-hint">有効期限：10分間</div>
+
+      <button class="btn btn-primary" onclick="verifyPin()">確認する</button>
+      <div class="msg" id="msg2"></div>
+
+      <button style="margin-top:12px;width:100%;background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;" onclick="backToStep1()">← メールアドレスを変更する</button>
+    </div>
+
+  </div>
+
+  <!-- 結果表示 -->
+  <div class="card" id="result-section">
+    <div class="result-header">
+      <div class="avatar" id="result-avatar">T</div>
+      <div>
+        <div class="name" id="result-name"></div>
+        <div class="dept" id="result-dept"></div>
+      </div>
+    </div>
+
+    <div id="accounts-list">
+      <div class="loading">読み込み中...</div>
+    </div>
+
+    <button class="logout-btn" onclick="logout()">ログアウト</button>
+  </div>
+</main>
+
+<footer>© 南和グループ 管理本部</footer>
+
+<script>
+const SUPABASE_URL = 'https://cicxvcjnvkynhukbnrns.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentEmail = '';
+let currentEmployee = null;
+let showPasswords = {};
+
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = `msg show ${type}`;
+}
+
+function hideMsg(id) {
+  document.getElementById(id).className = 'msg';
+}
+
+async function sendPin() {
+  const email = document.getElementById('email-input').value.trim();
+  if (!email) { showMsg('msg1', 'メールアドレスを入力してください', 'error'); return; }
+
+  const btn = document.getElementById('send-pin-btn');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  hideMsg('msg1');
+
+  // 登録済みメールか確認
+  const { data: emp, error } = await supabase
+    .from('employees')
+    .select('id, name, honbu, email')
+    .eq('email', email)
+    .single();
+
+  if (error || !emp) {
+    showMsg('msg1', '登録されていないメールアドレスです', 'error');
+    btn.disabled = false;
+    btn.textContent = 'PINを送信する';
+    return;
+  }
+
+  // 6桁PIN生成
+  const pin = Math.floor(100000 + Math.random() * 900000).toString();
+  const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+  // 古いトークンを削除
+  await supabase.from('otp_tokens').delete().eq('email', email);
+
+  // 新トークン保存
+  const { error: insertErr } = await supabase.from('otp_tokens').insert({
+    email: email,
+    token: pin,
+    expires_at: expires,
+    used: false
+  });
+
+  if (insertErr) {
+    showMsg('msg1', 'エラーが発生しました。再度お試しください', 'error');
+    btn.disabled = false;
+    btn.textContent = 'PINを送信する';
+    return;
+  }
+
+  // Edge Function経由でメール送信
+  const funcRes = await fetch('https://cicxvcjnvkynhukbnrns.supabase.co/functions/v1/send-otp', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+    },
+    body: JSON.stringify({ email, pin })
+  });
+
+  if (!funcRes.ok) {
+    showMsg('msg1', 'メール送信に失敗しました。再度お試しください', 'error');
+    btn.disabled = false;
+    btn.textContent = 'PINを送信する';
+    return;
+  }
+
+  currentEmail = email;
+  currentEmployee = emp;
+
+  document.getElementById('pin-desc').textContent = `${email} に6桁のPINを送信しました。`;
+  document.getElementById('step1').classList.remove('active');
+  document.getElementById('step2').classList.add('active');
+
+  showMsg('msg2', 'PINを送信しました。メールをご確認ください。', 'success');
+
+  btn.disabled = false;
+  btn.textContent = 'PINを送信する';
+}
+
+async function verifyPin() {
+  const pin = document.getElementById('pin-input').value.trim();
+  if (pin.length !== 6) { showMsg('msg2', '6桁のPINを入力してください', 'error'); return; }
+  hideMsg('msg2');
+
+  const { data: token, error } = await supabase
+    .from('otp_tokens')
+    .select('*')
+    .eq('email', currentEmail)
+    .eq('token', pin)
+    .eq('used', false)
+    .gte('expires_at', new Date().toISOString())
+    .single();
+
+  if (error || !token) {
+    showMsg('msg2', 'PINが正しくないか、有効期限が切れています', 'error');
+    return;
+  }
+
+  // 使用済みにする
+  await supabase.from('otp_tokens').update({ used: true }).eq('id', token.id);
+
+  // 結果表示へ
+  showResult();
+}
+
+async function showResult() {
+  document.getElementById('login-card').style.display = 'none';
+  document.getElementById('result-section').style.display = 'block';
+
+  const emp = currentEmployee;
+  document.getElementById('result-avatar').textContent = emp.name ? emp.name[0] : '?';
+  document.getElementById('result-name').textContent = emp.name;
+  document.getElementById('result-dept').textContent = emp.honbu || '';
+
+  // アカウント情報を取得
+  const { data: accounts, error } = await supabase
+    .from('accounts')
+    .select('*')
+    .eq('employee_id', emp.id)
+    .order('service_name');
+
+  const list = document.getElementById('accounts-list');
+
+  if (error || !accounts || accounts.length === 0) {
+    list.innerHTML = '<div class="loading">登録されているアカウント情報がありません</div>';
+    return;
+  }
+
+  list.innerHTML = accounts.map(acc => `
+    <div class="service-card">
+      <div class="service-name">${acc.service_name}</div>
+      ${acc.login_id ? `
+      <div class="info-row">
+        <span class="info-label">ログインID</span>
+        <span class="info-value">
+          ${acc.login_id}
+          <button class="copy-btn" onclick="copyText('${acc.login_id}', this)">コピー</button>
+        </span>
+      </div>` : ''}
+      ${acc.password ? `
+      <div class="info-row">
+        <span class="info-label">パスワード</span>
+        <span class="info-value">
+          <span class="pw-mask" id="pw-${acc.id}">••••••••</span>
+          <button class="toggle-pw" onclick="togglePw('${acc.id}', '${acc.password}')">表示</button>
+          <button class="copy-btn" onclick="copyText('${acc.password}', this)">コピー</button>
+        </span>
+      </div>` : ''}
+      ${acc.note ? `
+      <div class="info-row">
+        <span class="info-label">備考</span>
+        <span class="info-value">${acc.note}</span>
+      </div>` : ''}
+    </div>
+  `).join('');
+}
+
+function togglePw(id, pw) {
+  const el = document.getElementById(`pw-${id}`);
+  if (el.textContent === '••••••••') {
+    el.textContent = pw;
+    el.nextElementSibling.textContent = '隠す';
+  } else {
+    el.textContent = '••••••••';
+    el.nextElementSibling.textContent = '表示';
+  }
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+function backToStep1() {
+  document.getElementById('step2').classList.remove('active');
+  document.getElementById('step1').classList.add('active');
+  document.getElementById('pin-input').value = '';
+  hideMsg('msg1');
+  hideMsg('msg2');
+}
+
+function logout() {
+  currentEmail = '';
+  currentEmployee = null;
+  document.getElementById('result-section').style.display = 'none';
+  document.getElementById('login-card').style.display = 'block';
+  document.getElementById('email-input').value = '';
+  document.getElementById('pin-input').value = '';
+  document.getElementById('step2').classList.remove('active');
+  document.getElementById('step1').classList.add('active');
+}
+</script>
+</body>
+</html>
