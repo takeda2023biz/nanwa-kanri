@@ -355,7 +355,7 @@ async function sendPin() {
   hideMsg('msg1');
 
   // 登録済みメールか確認
-  const { data: emp, error } = await supabase
+  const { data: emp, error } = await sb
     .from('employees')
     .select('id, name, honbu, email')
     .eq('email', email)
@@ -425,7 +425,7 @@ async function verifyPin() {
   if (pin.length !== 6) { showMsg('msg2', '6桁のPINを入力してください', 'error'); return; }
   hideMsg('msg2');
 
-  const { data: token, error } = await supabase
+  const { data: token, error } = await sb
     .from('otp_tokens')
     .select('*')
     .eq('email', currentEmail)
@@ -456,7 +456,7 @@ async function showResult() {
   document.getElementById('result-dept').textContent = emp.honbu || '';
 
   // アカウント情報を取得
-  const { data: accounts, error } = await supabase
+  const { data: accounts, error } = await sb
     .from('accounts')
     .select('*')
     .eq('employee_id', emp.id)
