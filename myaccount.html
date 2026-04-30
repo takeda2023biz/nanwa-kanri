@@ -280,12 +280,12 @@
     <!-- Step 1: メールアドレス入力 -->
     <div class="step active" id="step1">
       <div class="card-title">本人確認</div>
-      <div class="card-sub">登録されているメールアドレスを入力してください。<br>ワンタイムPIN（6桁）をお送りします。</div>
+      <div class="card-sub">自分のメールアドレスを入力してください。<br>ワンタイムPIN（6桁）をお送りします。</div>
 
       <label>メールアドレス</label>
-      <div style="display:flex;align-items:center;border:1.5px solid var(--border);border-radius:8px;background:#fafbfc;overflow:hidden;transition:border-color 0.2s;" id="email-wrap">
-        <input type="text" id="email-input" placeholder="username" style="border:none;background:transparent;padding:12px 8px 12px 16px;font-size:15px;font-family:inherit;color:var(--text);outline:none;flex:1;min-width:0;" onfocus="document.getElementById('email-wrap').style.borderColor='var(--accent)'" onblur="document.getElementById('email-wrap').style.borderColor='var(--border)'" />
-        <span style="padding:12px 16px 12px 0;font-size:15px;color:var(--muted);white-space:nowrap;">@k-nanwa.co.jp</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="text" id="email-input" placeholder="例：takeda" style="flex:1;" />
+        <span style="font-size:14px;color:var(--muted);white-space:nowrap;">@k-nanwa.co.jp</span>
       </div>
 
       <button class="btn btn-primary" id="send-pin-btn" onclick="sendPin()">PINを送信する</button>
