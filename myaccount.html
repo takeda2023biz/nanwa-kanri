@@ -329,7 +329,7 @@
 <script>
 const SUPABASE_URL = 'https://cicxvcjnvkynhukbnrns.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentEmail = '';
 let currentEmployee = null;
@@ -373,10 +373,10 @@ async function sendPin() {
   const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
   // 古いトークンを削除
-  await supabase.from('otp_tokens').delete().eq('email', email);
+  await sb.from('otp_tokens').delete().eq('email', email);
 
   // 新トークン保存
-  const { error: insertErr } = await supabase.from('otp_tokens').insert({
+  const { error: insertErr } = await sb.from('otp_tokens').insert({
     email: email,
     token: pin,
     expires_at: expires,
@@ -440,7 +440,7 @@ async function verifyPin() {
   }
 
   // 使用済みにする
-  await supabase.from('otp_tokens').update({ used: true }).eq('id', token.id);
+  await sb.from('otp_tokens').update({ used: true }).eq('id', token.id);
 
   // 結果表示へ
   showResult();
