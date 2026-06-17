@@ -1,21 +1,53 @@
-name: Supabase Keep Alive
+name: keep-alive
 
 on:
   schedule:
-    - cron: '0 0 */3 * *'
+    - cron: '17 3 * * *'      # 毎日 1回（UTC 03:17 = JST 12:17）
   workflow_dispatch:
 
 jobs:
-  keep-alive:
+  ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase
+      - name: Ping Supabase REST (keep_alive)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "apikey: ${SUPABASE_ANON_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
-            "${SUPABASE_URL}/rest/v1/")
-          echo "Supabase ping status: $STATUS"
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::error::SUPABASE_URL または SUPABASE_ANON_KEY が未設定です"
+            exit 1
+          fi
+
+          URL="${SUPABASE_URL%/}/rest/v1/keep_alive?select=id&limit=1"
+          echo "Target: $URL"
+
+          max=5
+          attempt=1
+          code=000
+          while [ "$attempt" -le "$max" ]; do
+            echo "Attempt $attempt/$max ..."
+            code=$(curl -sS -o /tmp/body.txt -w '%{http_code}' \
+              --connect-timeout 10 --max-time 30 \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              -H "Accept: application/json" \
+              "$URL" || echo "000")
+            # ↑ Authorization ヘッダーは送らない（publishable キーは JWT ではないため）
+
+            echo "HTTP status: $code"
+            echo "Body: $(cat /tmp/body.txt)"
+
+            if [ "$code" = "200" ]; then
+              echo "✅ keep-alive 成功 (200)"
+              exit 0
+            fi
+
+            echo "⚠️ 失敗 (status=$code)。リトライします..."
+            sleep $((attempt * 5))
+            attempt=$((attempt + 1))
+          done
+
+          echo "::error::keep-alive 失敗。最終ステータス=$code（200以外なので赤にします）"
+          exit 1
