@@ -369,16 +369,30 @@ function restoreFocus(saved){
   }
   window.scrollTo(0,saved.scrollY);
 }
-// 検索欄: IME（日本語入力）のローマ字→かな変換中に再描画してしまうと変換が
-// 壊れるため、入力が一瞬止まってから検索を実行する（変換確定・非確定を問わず安全）
-let empSearchTimer=null;
-function empSearchInput(v){empQ=v;empPage=1;clearTimeout(empSearchTimer);empSearchTimer=setTimeout(renderEmployees,250);}
-let devSearchTimer=null;
-function devSearchInput(v){devQ=v;devPage=1;clearTimeout(devSearchTimer);devSearchTimer=setTimeout(renderDevices,250);}
-let vehSearchTimer=null;
-function vehSearchInput(v){vehQ=v;vehPage=1;clearTimeout(vehSearchTimer);vehSearchTimer=setTimeout(renderVehicles,250);}
-let pbSearchTimer=null;
-function pbSearchInput(v){pbQ=v;clearTimeout(pbSearchTimer);pbSearchTimer=setTimeout(renderPhonebook,250);}
+// 検索欄: IME（日本語入力）のローマ字→かな→漢字変換中に再描画すると、
+// 変換の途中でも強制的に確定されてしまう。変換中（isComposing）は
+// 一切再描画せず、変換確定（compositionend）後に初めて検索を実行する。
+// ローマ字変換を使わない直接入力（英数・かな入力）は従来どおり
+// 少し待ってから検索するデバウンス方式のまま。
+let empComposing=false,empSearchTimer=null;
+function empSearchInput(v){empQ=v;empPage=1;if(empComposing)return;clearTimeout(empSearchTimer);empSearchTimer=setTimeout(renderEmployees,250);}
+function empCompStart(){empComposing=true;clearTimeout(empSearchTimer);}
+function empCompEnd(el){empComposing=false;setTimeout(()=>{empQ=el.value;empPage=1;renderEmployees();},0);}
+
+let devComposing=false,devSearchTimer=null;
+function devSearchInput(v){devQ=v;devPage=1;if(devComposing)return;clearTimeout(devSearchTimer);devSearchTimer=setTimeout(renderDevices,250);}
+function devCompStart(){devComposing=true;clearTimeout(devSearchTimer);}
+function devCompEnd(el){devComposing=false;setTimeout(()=>{devQ=el.value;devPage=1;renderDevices();},0);}
+
+let vehComposing=false,vehSearchTimer=null;
+function vehSearchInput(v){vehQ=v;vehPage=1;if(vehComposing)return;clearTimeout(vehSearchTimer);vehSearchTimer=setTimeout(renderVehicles,250);}
+function vehCompStart(){vehComposing=true;clearTimeout(vehSearchTimer);}
+function vehCompEnd(el){vehComposing=false;setTimeout(()=>{vehQ=el.value;vehPage=1;renderVehicles();},0);}
+
+let pbComposing=false,pbSearchTimer=null;
+function pbSearchInput(v){pbQ=v;if(pbComposing)return;clearTimeout(pbSearchTimer);pbSearchTimer=setTimeout(renderPhonebook,250);}
+function pbCompStart(){pbComposing=true;clearTimeout(pbSearchTimer);}
+function pbCompEnd(el){pbComposing=false;setTimeout(()=>{pbQ=el.value;renderPhonebook();},0);}
 function toast(msg,ms=2200){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms);}
 function setSync(msg,color='#aaa'){const s=document.getElementById('sync-status');s.style.color=color;s.textContent=msg;}
 
@@ -1255,6 +1269,20 @@ function exportPhoneCSV(){
   a.download=pbTab==='mobile'?'携帯一覧.csv':'WiFi一覧.csv';
   a.click();
 }
+
+// ── IME変換中の検索欄再描画防止（delegation） ──
+// inline属性のoncompositionstart/endはブラウザによって発火が不安定なため、
+// 常に存在するdocumentへイベント委譲することで確実に検知する。
+const COMP_MAP={'emp-search':['empCompStart','empCompEnd'],'dev-search':['devCompStart','devCompEnd'],
+  'veh-search':['vehCompStart','vehCompEnd'],'pb-search':['pbCompStart','pbCompEnd']};
+document.addEventListener('compositionstart',e=>{
+  const m=COMP_MAP[e.target && e.target.id];
+  if(m) window[m[0]]();
+});
+document.addEventListener('compositionend',e=>{
+  const m=COMP_MAP[e.target && e.target.id];
+  if(m) window[m[1]](e.target);
+});
 
 // ── 初期ロード ──
 (async()=>{
