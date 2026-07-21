@@ -101,7 +101,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
 <div class="topbar">
   <div>
     <div class="topbar-title">管理本部 統合管理システム</div>
-    <div class="topbar-sub">社員 / 機器 / リース・レンタル / 携帯・Wi-Fi 一元管理</div>
+    <div class="topbar-sub">社員 / 機器 / 車両 / リース・レンタル / 携帯・Wi-Fi 一元管理</div>
   </div>
   <div style="display:flex;align-items:center;gap:12px;">
     <span id="sync-status" style="font-size:11px;color:#aaa"></span>
@@ -113,6 +113,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
   <button class="nav-btn active" onclick="showPage('dashboard',this)">ダッシュボード</button>
   <button class="nav-btn" onclick="showPage('employees',this)">社員管理</button>
   <button class="nav-btn" onclick="showPage('devices',this)">機器管理</button>
+  <button class="nav-btn" onclick="showPage('vehicles',this)">車両管理</button>
   <button class="nav-btn" onclick="showPage('contracts',this)">契約管理</button>
   <button class="nav-btn" onclick="showPage('alerts',this)">期限アラート</button>
   <button class="nav-btn" onclick="showPage('phonebook',this)">電話番号帳</button>
@@ -122,6 +123,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
   <div id="page-dashboard" class="page active"><div class="loading">読み込み中...</div></div>
   <div id="page-employees" class="page"></div>
   <div id="page-devices" class="page"></div>
+  <div id="page-vehicles" class="page"></div>
   <div id="page-contracts" class="page"></div>
   <div id="page-alerts" class="page"></div>
   <div id="page-phonebook" class="page"></div>
@@ -232,6 +234,66 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
   </div>
 </div>
 
+<!-- 車両モーダル -->
+<div class="modal-bg" id="veh-modal" onclick="if(event.target===this)closeVehModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="veh-modal-title">車両登録</h2>
+      <button class="modal-close" onclick="closeVehModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-section">基本情報</div>
+        <div class="form-row"><label>事業本部</label>
+          <select id="vf-honbu">
+            <option value="">未設定</option>
+            <option>建設事業本部</option><option>建設資材事業本部</option><option>エネルギー事業本部</option>
+            <option>管理本部</option><option>環境衛生事業本部</option><option>衛生管理部</option>
+          </select>
+        </div>
+        <div class="form-row"><label>使用者</label><input id="vf-assignee" placeholder="山田 太郎"/></div>
+        <div class="form-row"><label>所有区分</label>
+          <select id="vf-ownership"><option value="社有車">社有車</option><option value="リース">リース</option></select>
+        </div>
+        <div class="form-row"><label>状態</label>
+          <select id="vf-status"><option value="active">使用中</option><option value="returned">返却済み</option></select>
+        </div>
+        <div class="form-row"><label>メーカー</label><input id="vf-maker" placeholder="トヨタ"/></div>
+        <div class="form-row"><label>車種</label><input id="vf-model" placeholder="プロボックス HV"/></div>
+        <div class="form-row"><label>車台番号</label><input id="vf-chassis" placeholder="NRE161-0107262"/></div>
+        <div class="form-row"><label>初度登録年月</label><input id="vf-firstreg" placeholder="令和7年8月"/></div>
+        <div class="form-section">ナンバープレート</div>
+        <div class="form-row"><label>地域</label><input id="vf-region" placeholder="鹿児島"/></div>
+        <div class="form-row"><label>分類番号</label><input id="vf-class" placeholder="400"/></div>
+        <div class="form-row"><label>かな</label><input id="vf-kana" placeholder="な"/></div>
+        <div class="form-row"><label>一連番号</label><input id="vf-number" placeholder="3790"/></div>
+        <div class="form-section">契約・リース</div>
+        <div class="form-row"><label>リース会社</label><input id="vf-leaseco" placeholder="芙蓉オートリース"/></div>
+        <div class="form-row"><label>取次店</label><input id="vf-agent" placeholder="ネッツトヨタ鹿児島"/></div>
+        <div class="form-row"><label>リース開始日</label><input id="vf-leasestart" type="date"/></div>
+        <div class="form-row"><label>リース終了日</label><input id="vf-leaseend" type="date"/></div>
+        <div class="form-row"><label>本体価格（円）</label><input id="vf-price" type="number"/></div>
+        <div class="form-row"><label>保険（円）</label><input id="vf-insurance" type="number"/></div>
+        <div class="form-row"><label>消費税（円）</label><input id="vf-tax" type="number"/></div>
+        <div class="form-row"><label>月額合計（円）</label><input id="vf-monthly" type="number"/></div>
+        <div class="form-section">車検・点検</div>
+        <div class="form-row"><label>車検証有効期間満了日</label><input id="vf-shaken" type="date"/></div>
+        <div class="form-row"><label>点検実施日</label><input id="vf-inspdate" type="date"/></div>
+        <div class="form-row"><label>点検案内日</label><input id="vf-notice" placeholder="4/23今村課長 LINE"/></div>
+        <div class="form-row"><label>点検内容</label><input id="vf-content" placeholder="7/16 車検"/></div>
+        <div class="form-row full"><label>備考</label><textarea id="vf-note" placeholder="特記事項など"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" id="vf-del-btn" onclick="deleteVehicle()" style="display:none">削除</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="closeVehModal()">キャンセル</button>
+        <button class="btn btn-primary" onclick="saveVehicle()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -276,20 +338,36 @@ function remain(end){
   const m=Math.floor(days/30);
   return m>=12?Math.floor(m/12)+'年'+m%12+'ヶ月':m>0?m+'ヶ月':days+'日';
 }
+const STATUS_RANK={danger:3,warn:2,ok:1,none:0};
+function vehCritical(v){
+  const s1=leaseStatus(v.shaken_expiry),s2=leaseStatus(v.lease_end_date);
+  if(STATUS_RANK[s1]>=STATUS_RANK[s2]) return {date:v.shaken_expiry,label:'車検',status:s1};
+  return {date:v.lease_end_date,label:'リース',status:s2};
+}
+function vehStatus(v){return vehCritical(v).status;}
+function vehBadge(v){
+  const c=vehCritical(v);
+  if(c.status==='none') return '<span class="badge b-gray">—</span>';
+  const map={danger:'b-red',warn:'b-amber',ok:'b-green'};
+  const txt={danger:c.label+'期限切れ',warn:c.label+'まもなく',ok:'正常'};
+  return `<span class="badge ${map[c.status]}">${txt[c.status]}</span>`;
+}
 function toast(msg,ms=2200){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms);}
 function setSync(msg,color='#aaa'){const s=document.getElementById('sync-status');s.style.color=color;s.textContent=msg;}
 
-let EMPLOYEES=[],DEVICES=[];
+let EMPLOYEES=[],DEVICES=[],VEHICLES=[];
 
 async function loadAll(){
   setSync('読み込み中...','#888');
-  const [er,dr]=await Promise.all([
+  const [er,dr,vr]=await Promise.all([
     sb.from('employees').select('*').order('join_date',{ascending:true}),
-    sb.from('devices').select('*').order('end_date',{ascending:true,nullsFirst:false})
+    sb.from('devices').select('*').order('end_date',{ascending:true,nullsFirst:false}),
+    sb.from('vehicles').select('*').order('lease_end_date',{ascending:true,nullsFirst:false})
   ]);
-  if(er.error||dr.error){setSync('読み込みエラー','#E24B4A');return false;}
+  if(er.error||dr.error||vr.error){setSync('読み込みエラー','#E24B4A');return false;}
   EMPLOYEES=er.data||[];
   DEVICES=dr.data||[];
+  VEHICLES=vr.data||[];
   setSync('同期済み ✓','#27500A');
   return true;
 }
@@ -302,22 +380,25 @@ async function showPage(id,btn){
   btn.classList.add('active');
   currentPage=id;
   await loadAll();
-  const renders={dashboard:renderDashboard,employees:renderEmployees,devices:renderDevices,contracts:renderContracts,alerts:renderAlerts,phonebook:renderPhonebook};
+  const renders={dashboard:renderDashboard,employees:renderEmployees,devices:renderDevices,vehicles:renderVehicles,contracts:renderContracts,alerts:renderAlerts,phonebook:renderPhonebook};
   if(renders[id]) renders[id]();
 }
 
 // ── ダッシュボード ──
 function renderDashboard(){
-  const danger=DEVICES.filter(d=>leaseStatus(d.end_date)==='danger');
-  const warn=DEVICES.filter(d=>leaseStatus(d.end_date)==='warn');
+  const activeVeh=VEHICLES.filter(v=>v.status!=='returned');
+  const danger=[...DEVICES.filter(d=>leaseStatus(d.end_date)==='danger'),...activeVeh.filter(v=>vehStatus(v)==='danger')];
+  const warn=[...DEVICES.filter(d=>leaseStatus(d.end_date)==='warn'),...activeVeh.filter(v=>vehStatus(v)==='warn')];
   const totalM=DEVICES.reduce((s,d)=>s+(parseInt(d.monthly)||0),0);
   const hbCnt={};
   EMPLOYEES.forEach(e=>{hbCnt[e.honbu]=(hbCnt[e.honbu]||0)+1;});
-  const alerts=[...danger,...warn].sort((a,b)=>new Date(a.end_date||'9999')-new Date(b.end_date||'9999')).slice(0,10);
+  const alertDate=x=>x.end_date!==undefined?x.end_date:vehCritical(x).date;
+  const alerts=[...danger,...warn].sort((a,b)=>new Date(alertDate(a)||'9999')-new Date(alertDate(b)||'9999')).slice(0,10);
   document.getElementById('page-dashboard').innerHTML=`
-    <div class="stats" style="grid-template-columns:repeat(5,1fr)">
+    <div class="stats" style="grid-template-columns:repeat(6,1fr)">
       <div class="stat"><div class="stat-label">社員数</div><div class="stat-value">${EMPLOYEES.length}</div><div class="stat-sub">6事業本部</div></div>
       <div class="stat"><div class="stat-label">管理機器数</div><div class="stat-value">${DEVICES.length}</div><div class="stat-sub">リース・レンタル・携帯・Wi-Fi</div></div>
+      <div class="stat"><div class="stat-label">車両台数</div><div class="stat-value">${activeVeh.length}</div><div class="stat-sub">使用中（返却済除く）</div></div>
       <div class="stat"><div class="stat-label">月額合計（税抜）</div><div class="stat-value">${Math.round(totalM/1000)}千円</div><div class="stat-sub">${totalM.toLocaleString()}円</div></div>
       <div class="stat"><div class="stat-label" style="color:#854f0b">期限6ヶ月以内</div><div class="stat-value" style="color:#854f0b">${warn.length}</div></div>
       <div class="stat"><div class="stat-label" style="color:#a32d2d">期限切れ</div><div class="stat-value" style="color:#a32d2d">${danger.length}</div></div>
@@ -345,20 +426,25 @@ function renderDashboard(){
       </div>
     </div>
     <div class="section-title">期限アラート（直近${alerts.length}件）</div>
-    ${alerts.length?alerts.map(d=>{
-      const s=leaseStatus(d.end_date);
+    ${alerts.length?alerts.map(x=>{
+      const isVeh=x.end_date===undefined;
+      const s=isVeh?vehStatus(x):leaseStatus(x.end_date);
+      const d=isVeh?vehCritical(x).date:x.end_date;
+      const label=isVeh?(x.model||x.maker||'車両')+'（'+(x.assignee||'未割当')+'）':x.name;
+      const typeTxt=isVeh?'車両・'+vehCritical(x).label:x.type;
+      const typeCls=isVeh?'b-green':(x.type==='リース'?'b-purple':x.type==='レンタル'?'b-teal':x.type==='Wi-Fi'?'b-wifi':'b-blue');
       return `<div class="alert-item">
         <div class="alert-dot" style="background:${s==='danger'?'#E24B4A':'#BA7517'}"></div>
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.name}</div>
+          <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</div>
           <div style="font-size:11px;color:#888;margin-top:3px">
-            <span class="badge ${d.type==='リース'?'b-purple':d.type==='レンタル'?'b-teal':d.type==='Wi-Fi'?'b-wifi':'b-blue'}">${d.type}</span>
-            &nbsp;${d.contract_no||'—'}&nbsp;/&nbsp;${hbBadge(d.honbu)}&nbsp;/&nbsp;担当：${d.assignee||'未割当'}
+            <span class="badge ${typeCls}">${typeTxt}</span>
+            &nbsp;${isVeh?(x.plate_kana||'')+(x.plate_number||''):(x.contract_no||'—')}&nbsp;/&nbsp;${hbBadge(x.honbu)}&nbsp;/&nbsp;担当：${x.assignee||'未割当'}
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0;padding-left:16px">
-          <div style="font-size:13px;font-weight:700;color:${s==='danger'?'#a32d2d':'#854f0b'}">${remain(d.end_date)}</div>
-          <div style="font-size:11px;color:#aaa">${d.end_date||''}</div>
+          <div style="font-size:13px;font-weight:700;color:${s==='danger'?'#a32d2d':'#854f0b'}">${remain(d)}</div>
+          <div style="font-size:11px;color:#aaa">${d||''}</div>
         </div>
       </div>`;
     }).join(''):`<div style="color:#aaa;padding:16px 0;font-size:13px">期限アラートはありません</div>`}
@@ -682,6 +768,184 @@ function exportDevCSV(){
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='機器管理一覧.csv';a.click();
 }
 
+// ── 車両管理 ──
+let vehQ='',vehHonbu='',vehOwnership='',vehStatusF='',vehShowReturned=false,vehEditId=null,vehPage=1;
+const VEH_PER=20;
+function vehPlateStr(v){
+  const parts=[v.plate_region,v.plate_class,v.plate_kana,v.plate_number].filter(Boolean);
+  return parts.length?parts.join(' '):'—';
+}
+function renderVehicles(){
+  const filtered=VEHICLES.filter(v=>{
+    const mq=!vehQ||(v.assignee||'').includes(vehQ)||(v.model||'').includes(vehQ)||(v.maker||'').includes(vehQ)||(v.plate_number||'').includes(vehQ)||(v.chassis_no||'').includes(vehQ);
+    return mq&&(!vehHonbu||v.honbu===vehHonbu)&&(!vehOwnership||v.ownership===vehOwnership)&&(!vehStatusF||vehStatus(v)===vehStatusF)&&(vehShowReturned||v.status!=='returned');
+  });
+  const pages=Math.max(1,Math.ceil(filtered.length/VEH_PER));
+  if(vehPage>pages)vehPage=pages;
+  const slice=filtered.slice((vehPage-1)*VEH_PER,vehPage*VEH_PER);
+  const honbus=[...new Set(VEHICLES.map(v=>v.honbu).filter(Boolean))];
+  const activeCount=VEHICLES.filter(v=>v.status!=='returned').length;
+  document.getElementById('page-vehicles').innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:20px;font-weight:700">車両管理</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="exportVehCSV()">CSVエクスポート</button>
+        <button class="btn btn-primary" onclick="openVehModal(null)">＋ 車両登録</button>
+      </div>
+    </div>
+    <div class="stats" style="grid-template-columns:repeat(5,1fr)">
+      <div class="stat"><div class="stat-label">使用中車両</div><div class="stat-value">${activeCount}</div></div>
+      <div class="stat"><div class="stat-label">社有車</div><div class="stat-value">${VEHICLES.filter(v=>v.ownership==='社有車'&&v.status!=='returned').length}</div></div>
+      <div class="stat"><div class="stat-label">リース</div><div class="stat-value">${VEHICLES.filter(v=>v.ownership==='リース'&&v.status!=='returned').length}</div></div>
+      <div class="stat"><div class="stat-label" style="color:#854f0b">期限6ヶ月以内</div><div class="stat-value" style="color:#854f0b">${VEHICLES.filter(v=>v.status!=='returned'&&vehStatus(v)==='warn').length}</div></div>
+      <div class="stat"><div class="stat-label" style="color:#a32d2d">期限切れ</div><div class="stat-value" style="color:#a32d2d">${VEHICLES.filter(v=>v.status!=='returned'&&vehStatus(v)==='danger').length}</div></div>
+    </div>
+    <div class="controls">
+      <input type="text" placeholder="使用者・車種・メーカー・ナンバー・車台番号で検索..." value="${vehQ}" oninput="vehQ=this.value;vehPage=1;renderVehicles()"/>
+      <select onchange="vehHonbu=this.value;vehPage=1;renderVehicles()">
+        <option value="">全事業本部</option>
+        ${honbus.map(h=>`<option value="${h}"${vehHonbu===h?' selected':''}>${h}</option>`).join('')}
+      </select>
+      <select onchange="vehOwnership=this.value;vehPage=1;renderVehicles()">
+        <option value="">社有車＋リース</option>
+        <option value="社有車"${vehOwnership==='社有車'?' selected':''}>社有車のみ</option>
+        <option value="リース"${vehOwnership==='リース'?' selected':''}>リースのみ</option>
+      </select>
+      <select onchange="vehStatusF=this.value;vehPage=1;renderVehicles()">
+        <option value="">全ステータス</option>
+        <option value="danger"${vehStatusF==='danger'?' selected':''}>期限切れ</option>
+        <option value="warn"${vehStatusF==='warn'?' selected':''}>6ヶ月以内</option>
+        <option value="ok"${vehStatusF==='ok'?' selected':''}>正常</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#666;white-space:nowrap">
+        <input type="checkbox" style="height:auto" ${vehShowReturned?'checked':''} onchange="vehShowReturned=this.checked;vehPage=1;renderVehicles()"/>返却済みも表示
+      </label>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>区分</th><th>使用者</th><th>メーカー</th><th>車種</th><th>ナンバー</th><th>事業本部</th>
+          <th>車検満了日</th><th>リース終了日</th><th>状態</th><th>月額</th><th style="width:60px"></th>
+        </tr></thead>
+        <tbody>${slice.length?slice.map(v=>`<tr>
+          <td><span class="badge ${v.ownership==='社有車'?'b-sha':'b-purple'}">${v.ownership||'—'}</span>${v.status==='returned'?' <span class="badge b-gray">返却済</span>':''}</td>
+          <td style="font-weight:600">${v.assignee||'<span style="color:#ccc">未割当</span>'}</td>
+          <td style="font-size:12px">${v.maker||'—'}</td>
+          <td style="font-size:12px">${v.model||'—'}</td>
+          <td class="mono">${vehPlateStr(v)}</td>
+          <td>${hbBadge(v.honbu)}</td>
+          <td class="mono">${v.shaken_expiry||'—'}</td>
+          <td class="mono">${v.lease_end_date||'—'}</td>
+          <td>${vehBadge(v)}</td>
+          <td style="text-align:right;font-family:monospace;font-size:11px">${v.monthly_total?Number(v.monthly_total).toLocaleString():'—'}</td>
+          <td><button class="btn" style="height:28px;padding:0 10px;font-size:11px" onclick="openVehModal('${v.id}')">編集</button></td>
+        </tr>`).join(''):`<tr><td colspan="11" style="text-align:center;padding:2.5rem;color:#aaa">該当なし</td></tr>`}</tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span>${filtered.length}件（${filtered.length?(vehPage-1)*VEH_PER+1:0}〜${Math.min(vehPage*VEH_PER,filtered.length)}件表示）</span>
+      <div class="page-btns">${renderPager(pages,vehPage,'vehPage','renderVehicles')}</div>
+    </div>
+  `;
+}
+
+function openVehModal(id){
+  vehEditId=id;
+  document.getElementById('veh-modal-title').textContent=id?'車両情報編集':'車両登録';
+  document.getElementById('vf-del-btn').style.display=id?'block':'none';
+  const ids=['vf-assignee','vf-maker','vf-model','vf-chassis','vf-firstreg','vf-region','vf-class','vf-kana','vf-number',
+    'vf-leaseco','vf-agent','vf-leasestart','vf-leaseend','vf-price','vf-insurance','vf-tax','vf-monthly',
+    'vf-shaken','vf-inspdate','vf-notice','vf-content','vf-note'];
+  if(id){
+    const v=VEHICLES.find(x=>x.id===id);
+    document.getElementById('vf-honbu').value=v.honbu||'';
+    document.getElementById('vf-assignee').value=v.assignee||'';
+    document.getElementById('vf-ownership').value=v.ownership||'社有車';
+    document.getElementById('vf-status').value=v.status||'active';
+    document.getElementById('vf-maker').value=v.maker||'';
+    document.getElementById('vf-model').value=v.model||'';
+    document.getElementById('vf-chassis').value=v.chassis_no||'';
+    document.getElementById('vf-firstreg').value=v.first_registration||'';
+    document.getElementById('vf-region').value=v.plate_region||'';
+    document.getElementById('vf-class').value=v.plate_class||'';
+    document.getElementById('vf-kana').value=v.plate_kana||'';
+    document.getElementById('vf-number').value=v.plate_number||'';
+    document.getElementById('vf-leaseco').value=v.lease_company||'';
+    document.getElementById('vf-agent').value=v.agent||'';
+    document.getElementById('vf-leasestart').value=v.lease_start_date||'';
+    document.getElementById('vf-leaseend').value=v.lease_end_date||'';
+    document.getElementById('vf-price').value=v.price_base||'';
+    document.getElementById('vf-insurance').value=v.insurance||'';
+    document.getElementById('vf-tax').value=v.tax||'';
+    document.getElementById('vf-monthly').value=v.monthly_total||'';
+    document.getElementById('vf-shaken').value=v.shaken_expiry||'';
+    document.getElementById('vf-inspdate').value=v.inspection_date||'';
+    document.getElementById('vf-notice').value=v.inspection_notice||'';
+    document.getElementById('vf-content').value=v.inspection_content||'';
+    document.getElementById('vf-note').value=v.note||'';
+  } else {
+    ids.forEach(i=>document.getElementById(i).value='');
+    document.getElementById('vf-honbu').value='';
+    document.getElementById('vf-ownership').selectedIndex=0;
+    document.getElementById('vf-status').selectedIndex=0;
+  }
+  document.getElementById('veh-modal').classList.add('open');
+}
+function closeVehModal(){document.getElementById('veh-modal').classList.remove('open');}
+
+async function saveVehicle(){
+  const d={
+    honbu:document.getElementById('vf-honbu').value||null,
+    assignee:document.getElementById('vf-assignee').value.trim()||null,
+    ownership:document.getElementById('vf-ownership').value,
+    status:document.getElementById('vf-status').value,
+    maker:document.getElementById('vf-maker').value.trim()||null,
+    model:document.getElementById('vf-model').value.trim()||null,
+    chassis_no:document.getElementById('vf-chassis').value.trim()||null,
+    first_registration:document.getElementById('vf-firstreg').value.trim()||null,
+    plate_region:document.getElementById('vf-region').value.trim()||null,
+    plate_class:document.getElementById('vf-class').value.trim()||null,
+    plate_kana:document.getElementById('vf-kana').value.trim()||null,
+    plate_number:document.getElementById('vf-number').value.trim()||null,
+    lease_company:document.getElementById('vf-leaseco').value.trim()||null,
+    agent:document.getElementById('vf-agent').value.trim()||null,
+    lease_start_date:document.getElementById('vf-leasestart').value||null,
+    lease_end_date:document.getElementById('vf-leaseend').value||null,
+    price_base:parseFloat(document.getElementById('vf-price').value)||null,
+    insurance:parseFloat(document.getElementById('vf-insurance').value)||null,
+    tax:parseFloat(document.getElementById('vf-tax').value)||null,
+    monthly_total:parseFloat(document.getElementById('vf-monthly').value)||null,
+    shaken_expiry:document.getElementById('vf-shaken').value||null,
+    inspection_date:document.getElementById('vf-inspdate').value||null,
+    inspection_notice:document.getElementById('vf-notice').value.trim()||null,
+    inspection_content:document.getElementById('vf-content').value.trim()||null,
+    note:document.getElementById('vf-note').value.trim()||null,
+    updated_at:new Date().toISOString()};
+  if(!d.assignee&&!d.model&&!d.plate_number){alert('使用者・車種・ナンバーのいずれかを入力してください');return;}
+  let err;
+  if(vehEditId){({error:err}=await sb.from('vehicles').update(d).eq('id',vehEditId));}
+  else{({error:err}=await sb.from('vehicles').insert(d));}
+  if(err){alert('保存エラー: '+err.message);return;}
+  closeVehModal();await loadAll();renderVehicles();toast(vehEditId?'更新しました':'登録しました');
+}
+
+async function deleteVehicle(){
+  const v=VEHICLES.find(x=>x.id===vehEditId);
+  if(!confirm((v?.assignee||v?.model||'この車両')+'を削除しますか？'))return;
+  const {error}=await sb.from('vehicles').delete().eq('id',vehEditId);
+  if(error){alert('削除エラー: '+error.message);return;}
+  closeVehModal();await loadAll();renderVehicles();toast('削除しました');
+}
+
+function exportVehCSV(){
+  const h=['事業本部','使用者','所有区分','状態','メーカー','車種','車台番号','ナンバー','リース会社','取次店',
+    'リース開始日','リース終了日','車検満了日','点検実施日','月額合計','備考'];
+  const rows=VEHICLES.map(v=>[v.honbu,v.assignee,v.ownership,v.status,v.maker,v.model,v.chassis_no,vehPlateStr(v),
+    v.lease_company,v.agent,v.lease_start_date,v.lease_end_date,v.shaken_expiry,v.inspection_date,v.monthly_total,v.note]);
+  const csv=[h,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);a.download='車両管理一覧.csv';a.click();
+}
+
 // ── 契約管理 ──
 function renderContracts(){
   const lease=DEVICES.filter(d=>d.type==='リース').sort((a,b)=>new Date(a.end_date||'9999')-new Date(b.end_date||'9999'));
@@ -690,17 +954,20 @@ function renderContracts(){
   const wifi=DEVICES.filter(d=>d.type==='Wi-Fi');
   const lm=lease.reduce((s,d)=>s+(parseInt(d.monthly)||0),0);
   const rm=rental.reduce((s,d)=>s+(parseInt(d.monthly)||0),0);
+  const vehLease=VEHICLES.filter(v=>v.ownership==='リース'&&v.status!=='returned').sort((a,b)=>new Date(a.lease_end_date||'9999')-new Date(b.lease_end_date||'9999'));
+  const vm=vehLease.reduce((s,v)=>s+(parseFloat(v.monthly_total)||0),0);
   const makeTbl=(items,cols)=>`<div class="tbl-wrap" style="margin-bottom:20px;">
     <table><thead><tr>${cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead>
     <tbody>${items.length?items.map(d=>`<tr>${cols.map(c=>`<td ${c[2]||''}>${c[1](d)}</td>`).join('')}</tr>`).join('')
     :`<tr><td colspan="${cols.length}" style="text-align:center;padding:2rem;color:#aaa">データなし</td></tr>`}</tbody></table></div>`;
   document.getElementById('page-contracts').innerHTML=`
     <div style="font-size:20px;font-weight:700;margin-bottom:14px">契約管理</div>
-    <div class="stats" style="grid-template-columns:repeat(4,1fr)">
+    <div class="stats" style="grid-template-columns:repeat(5,1fr)">
       <div class="stat"><div class="stat-label">リース 月額合計</div><div class="stat-value">${Math.round(lm/1000)}千円</div><div class="stat-sub">${lease.length}件</div></div>
       <div class="stat"><div class="stat-label">レンタル 月額合計</div><div class="stat-value">${Math.round(rm/1000)}千円</div><div class="stat-sub">${rental.length}件</div></div>
       <div class="stat"><div class="stat-label">携帯 管理台数</div><div class="stat-value">${mobile.length}</div><div class="stat-sub">社給＋個人</div></div>
       <div class="stat"><div class="stat-label">Wi-Fi 管理台数</div><div class="stat-value">${wifi.length}</div></div>
+      <div class="stat"><div class="stat-label">車両リース 月額合計</div><div class="stat-value">${Math.round(vm/1000)}千円</div><div class="stat-sub">${vehLease.length}件</div></div>
     </div>
     <div class="section-title">リース契約一覧（期限順）</div>
     ${makeTbl(lease,[
@@ -753,35 +1020,58 @@ function renderContracts(){
       ['契約終了',d=>`<span class="mono">${d.end_date||'—'}</span>`,''],
       ['状態',d=>lsBadge(d.end_date),''],
     ])}
+    <div class="section-title">車両リース一覧（期限順）</div>
+    ${makeTbl(vehLease,[
+      ['使用者',d=>d.assignee||'—',''],
+      ['車種',d=>`<b>${d.maker||''} ${d.model||''}</b>`,''],
+      ['ナンバー',d=>`<span class="mono">${vehPlateStr(d)}</span>`,''],
+      ['事業本部',d=>hbBadge(d.honbu),''],
+      ['リース会社',d=>d.lease_company||'—','style="font-size:11px"'],
+      ['リース終了日',d=>`<span class="mono">${d.lease_end_date||'—'}</span>`,''],
+      ['車検満了日',d=>`<span class="mono">${d.shaken_expiry||'—'}</span>`,''],
+      ['状態',d=>vehBadge(d),''],
+      ['月額',d=>d.monthly_total?Number(d.monthly_total).toLocaleString()+'円':'—','style="text-align:right;font-family:monospace;font-size:11px"'],
+    ])}
   `;
 }
 
 // ── 期限アラート ──
 function renderAlerts(){
-  const danger=DEVICES.filter(d=>leaseStatus(d.end_date)==='danger').sort((a,b)=>new Date(a.end_date)-new Date(b.end_date));
-  const warn=DEVICES.filter(d=>leaseStatus(d.end_date)==='warn').sort((a,b)=>new Date(a.end_date)-new Date(b.end_date));
+  const activeVeh=VEHICLES.filter(v=>v.status!=='returned');
+  const danger=[...DEVICES.filter(d=>leaseStatus(d.end_date)==='danger'),...activeVeh.filter(v=>vehStatus(v)==='danger')]
+    .sort((a,b)=>new Date((a.end_date!==undefined?a.end_date:vehCritical(a).date))-new Date((b.end_date!==undefined?b.end_date:vehCritical(b).date)));
+  const warn=[...DEVICES.filter(d=>leaseStatus(d.end_date)==='warn'),...activeVeh.filter(v=>vehStatus(v)==='warn')]
+    .sort((a,b)=>new Date((a.end_date!==undefined?a.end_date:vehCritical(a).date))-new Date((b.end_date!==undefined?b.end_date:vehCritical(b).date)));
+  const okCount=DEVICES.filter(d=>leaseStatus(d.end_date)==='ok').length+activeVeh.filter(v=>vehStatus(v)==='ok').length;
   const makeList=(items,color,title)=>`
     <div class="section-title" style="color:${color}">${title}（${items.length}件）</div>
-    ${items.length?items.map(d=>`<div class="alert-item">
+    ${items.length?items.map(x=>{
+      const isVeh=x.end_date===undefined;
+      const d=isVeh?vehCritical(x).date:x.end_date;
+      const label=isVeh?(x.model||x.maker||'車両')+'（'+(x.assignee||'未割当')+'）':x.name;
+      const typeTxt=isVeh?'車両・'+vehCritical(x).label:x.type;
+      const typeCls=isVeh?'b-green':(x.type==='リース'?'b-purple':x.type==='レンタル'?'b-teal':x.type==='Wi-Fi'?'b-wifi':'b-blue');
+      return `<div class="alert-item">
       <div class="alert-dot" style="background:${color}"></div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600">${d.name}</div>
+        <div style="font-size:13px;font-weight:600">${label}</div>
         <div style="font-size:11px;color:#888;margin-top:3px">
-          <span class="badge ${d.type==='リース'?'b-purple':d.type==='レンタル'?'b-teal':d.type==='Wi-Fi'?'b-wifi':'b-blue'}">${d.type}</span>
-          &nbsp;${d.contract_no||'—'}&nbsp;/&nbsp;${hbBadge(d.honbu||'—')}&nbsp;/&nbsp;担当：${d.assignee||'未割当'}
+          <span class="badge ${typeCls}">${typeTxt}</span>
+          &nbsp;${isVeh?vehPlateStr(x):(x.contract_no||'—')}&nbsp;/&nbsp;${hbBadge(x.honbu||'—')}&nbsp;/&nbsp;担当：${x.assignee||'未割当'}
         </div>
       </div>
       <div style="text-align:right;flex-shrink:0;padding-left:16px">
-        <div style="font-size:14px;font-weight:700;color:${color}">${remain(d.end_date)}</div>
-        <div style="font-size:11px;color:#aaa">${d.end_date||''}</div>
+        <div style="font-size:14px;font-weight:700;color:${color}">${remain(d)}</div>
+        <div style="font-size:11px;color:#aaa">${d||''}</div>
       </div>
-    </div>`).join(''):`<div style="font-size:12px;color:#aaa;padding:10px 0">該当なし</div>`}`;
+    </div>`;
+    }).join(''):`<div style="font-size:12px;color:#aaa;padding:10px 0">該当なし</div>`}`;
   document.getElementById('page-alerts').innerHTML=`
     <div style="font-size:20px;font-weight:700;margin-bottom:14px">期限アラート</div>
     <div class="stats" style="grid-template-columns:repeat(3,1fr)">
-      <div class="stat"><div class="stat-label" style="color:#a32d2d">期限切れ</div><div class="stat-value" style="color:#a32d2d">${danger.length}件</div><div class="stat-sub">要対応</div></div>
-      <div class="stat"><div class="stat-label" style="color:#854f0b">6ヶ月以内満了</div><div class="stat-value" style="color:#854f0b">${warn.length}件</div><div class="stat-sub">更新要検討</div></div>
-      <div class="stat"><div class="stat-label">問題なし</div><div class="stat-value">${DEVICES.filter(d=>leaseStatus(d.end_date)==='ok').length}件</div></div>
+      <div class="stat"><div class="stat-label" style="color:#a32d2d">期限切れ</div><div class="stat-value" style="color:#a32d2d">${danger.length}件</div><div class="stat-sub">要対応（機器＋車両）</div></div>
+      <div class="stat"><div class="stat-label" style="color:#854f0b">6ヶ月以内満了</div><div class="stat-value" style="color:#854f0b">${warn.length}件</div><div class="stat-sub">更新要検討（機器＋車両）</div></div>
+      <div class="stat"><div class="stat-label">問題なし</div><div class="stat-value">${okCount}件</div></div>
     </div>
     ${makeList(danger,'#E24B4A','期限切れ — 要対応')}
     ${makeList(warn,'#BA7517','6ヶ月以内に満了')}
