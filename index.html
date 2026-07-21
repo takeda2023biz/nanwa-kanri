@@ -352,6 +352,23 @@ function vehBadge(v){
   const txt={danger:c.label+'期限切れ',warn:c.label+'まもなく',ok:'正常'};
   return `<span class="badge ${map[c.status]}">${txt[c.status]}</span>`;
 }
+// 検索欄などを再描画しても入力中のフォーカス・カーソル位置・スクロール位置を保持するためのヘルパー
+function saveFocus(containerId){
+  const el=document.activeElement;
+  const container=document.getElementById(containerId);
+  if(!el||!container||!container.contains(el)||!el.id) return null;
+  return {id:el.id,selStart:el.selectionStart,selEnd:el.selectionEnd,scrollY:window.scrollY};
+}
+function restoreFocus(saved){
+  if(!saved) return;
+  const el=document.getElementById(saved.id);
+  if(!el) return;
+  el.focus();
+  if(typeof saved.selStart==='number'&&el.setSelectionRange){
+    try{el.setSelectionRange(saved.selStart,saved.selEnd);}catch(e){}
+  }
+  window.scrollTo(0,saved.scrollY);
+}
 function toast(msg,ms=2200){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms);}
 function setSync(msg,color='#aaa'){const s=document.getElementById('sync-status');s.style.color=color;s.textContent=msg;}
 
@@ -463,13 +480,14 @@ function renderEmployees(){
   if(empPage>pages)empPage=pages;
   const slice=filtered.slice((empPage-1)*EMP_PER,empPage*EMP_PER);
   const honbus=[...new Set(EMPLOYEES.map(e=>e.honbu))];
+  const _focus=saveFocus('page-employees');
   document.getElementById('page-employees').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div style="font-size:20px;font-weight:700">社員管理</div>
       <button class="btn btn-primary" onclick="openEmpModal(null)">＋ 社員登録</button>
     </div>
     <div class="controls">
-      <input type="text" placeholder="氏名・ヨミガナ・役職・部署で検索..." value="${empQ}" oninput="empQ=this.value;empPage=1;renderEmployees()"/>
+      <input id="emp-search" type="text" placeholder="氏名・ヨミガナ・役職・部署で検索..." value="${empQ}" oninput="empQ=this.value;empPage=1;renderEmployees()"/>
       <select onchange="empHonbu=this.value;empPage=1;renderEmployees()">
         <option value="">全事業本部</option>
         ${honbus.map(h=>`<option value="${h}"${empHonbu===h?' selected':''}>${h}</option>`).join('')}
@@ -505,6 +523,7 @@ function renderEmployees(){
     </div>
     <div id="emp-detail-panel"></div>
   `;
+  restoreFocus(_focus);
 }
 
 function getDevForEmp(name){
@@ -617,6 +636,7 @@ function renderDevices(){
   if(devPage>pages)devPage=pages;
   const slice=filtered.slice((devPage-1)*DEV_PER,devPage*DEV_PER);
   const honbus=[...new Set(DEVICES.map(d=>d.honbu).filter(Boolean))];
+  const _focus=saveFocus('page-devices');
   document.getElementById('page-devices').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div style="font-size:20px;font-weight:700">機器管理</div>
@@ -633,7 +653,7 @@ function renderDevices(){
       <div class="stat"><div class="stat-label">Wi-Fi</div><div class="stat-value">${DEVICES.filter(d=>d.type==='Wi-Fi').length}</div></div>
     </div>
     <div class="controls">
-      <input type="text" placeholder="機器名・契約番号・担当者・資産番号で検索..." value="${devQ}" oninput="devQ=this.value;devPage=1;renderDevices()"/>
+      <input id="dev-search" type="text" placeholder="機器名・契約番号・担当者・資産番号で検索..." value="${devQ}" oninput="devQ=this.value;devPage=1;renderDevices()"/>
       <select onchange="devType=this.value;devPage=1;renderDevices()">
         <option value="">全種別</option>
         <option${devType==='リース'?' selected':''}>リース</option>
@@ -681,6 +701,7 @@ function renderDevices(){
       <div class="page-btns">${renderPager(pages,devPage,'devPage','renderDevices')}</div>
     </div>
   `;
+  restoreFocus(_focus);
 }
 
 function toggleDevFields(){
@@ -785,6 +806,7 @@ function renderVehicles(){
   const slice=filtered.slice((vehPage-1)*VEH_PER,vehPage*VEH_PER);
   const honbus=[...new Set(VEHICLES.map(v=>v.honbu).filter(Boolean))];
   const activeCount=VEHICLES.filter(v=>v.status!=='returned').length;
+  const _focus=saveFocus('page-vehicles');
   document.getElementById('page-vehicles').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div style="font-size:20px;font-weight:700">車両管理</div>
@@ -801,7 +823,7 @@ function renderVehicles(){
       <div class="stat"><div class="stat-label" style="color:#a32d2d">期限切れ</div><div class="stat-value" style="color:#a32d2d">${VEHICLES.filter(v=>v.status!=='returned'&&vehStatus(v)==='danger').length}</div></div>
     </div>
     <div class="controls">
-      <input type="text" placeholder="使用者・車種・メーカー・ナンバー・車台番号で検索..." value="${vehQ}" oninput="vehQ=this.value;vehPage=1;renderVehicles()"/>
+      <input id="veh-search" type="text" placeholder="使用者・車種・メーカー・ナンバー・車台番号で検索..." value="${vehQ}" oninput="vehQ=this.value;vehPage=1;renderVehicles()"/>
       <select onchange="vehHonbu=this.value;vehPage=1;renderVehicles()">
         <option value="">全事業本部</option>
         ${honbus.map(h=>`<option value="${h}"${vehHonbu===h?' selected':''}>${h}</option>`).join('')}
@@ -847,6 +869,7 @@ function renderVehicles(){
       <div class="page-btns">${renderPager(pages,vehPage,'vehPage','renderVehicles')}</div>
     </div>
   `;
+  restoreFocus(_focus);
 }
 
 function openVehModal(id){
@@ -1150,6 +1173,7 @@ function renderPhonebook(){
     return cmp*pbSortDir;
   });
   const honbus=[...new Set([...allMobile,...allWifi].map(d=>d.honbu).filter(Boolean))];
+  const _focus=saveFocus('page-phonebook');
   document.getElementById('page-phonebook').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div>
@@ -1163,7 +1187,7 @@ function renderPhonebook(){
       <button class="tab-btn${pbTab==='wifi'?' active':''}" onclick="pbTab='wifi';pbSortCol='honbu';pbSortDir=1;renderPhonebook()">📡 Wi-Fiルーター（${allWifi.length}件）</button>
     </div>
     <div class="controls">
-      <input type="text" placeholder="担当者名・電話番号・事業本部で検索..." value="${pbQ}" oninput="pbQ=this.value;renderPhonebook()"/>
+      <input id="pb-search" type="text" placeholder="担当者名・電話番号・事業本部で検索..." value="${pbQ}" oninput="pbQ=this.value;renderPhonebook()"/>
       <select onchange="pbHonbu=this.value;renderPhonebook()">
         <option value="">全事業本部</option>
         ${honbus.map(h=>`<option value="${h}"${pbHonbu===h?' selected':''}>${h}</option>`).join('')}
@@ -1208,6 +1232,7 @@ function renderPhonebook(){
       </table>
     </div>
   `;
+  restoreFocus(_focus);
 }
 
 function exportPhoneCSV(){
