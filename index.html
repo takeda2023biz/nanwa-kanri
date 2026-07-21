@@ -487,7 +487,7 @@ function renderEmployees(){
       <button class="btn btn-primary" onclick="openEmpModal(null)">＋ 社員登録</button>
     </div>
     <div class="controls">
-      <input id="emp-search" type="text" placeholder="氏名・ヨミガナ・役職・部署で検索..." value="${empQ}" oninput="empQ=this.value;empPage=1;renderEmployees()"/>
+      <input id="emp-search" type="text" placeholder="氏名・ヨミガナ・役職・部署で検索..." value="${empQ}" oninput="if(!event.isComposing){empQ=this.value;empPage=1;renderEmployees()}" oncompositionend="empQ=this.value;empPage=1;renderEmployees()"/>
       <select onchange="empHonbu=this.value;empPage=1;renderEmployees()">
         <option value="">全事業本部</option>
         ${honbus.map(h=>`<option value="${h}"${empHonbu===h?' selected':''}>${h}</option>`).join('')}
@@ -653,7 +653,7 @@ function renderDevices(){
       <div class="stat"><div class="stat-label">Wi-Fi</div><div class="stat-value">${DEVICES.filter(d=>d.type==='Wi-Fi').length}</div></div>
     </div>
     <div class="controls">
-      <input id="dev-search" type="text" placeholder="機器名・契約番号・担当者・資産番号で検索..." value="${devQ}" oninput="devQ=this.value;devPage=1;renderDevices()"/>
+      <input id="dev-search" type="text" placeholder="機器名・契約番号・担当者・資産番号で検索..." value="${devQ}" oninput="if(!event.isComposing){devQ=this.value;devPage=1;renderDevices()}" oncompositionend="devQ=this.value;devPage=1;renderDevices()"/>
       <select onchange="devType=this.value;devPage=1;renderDevices()">
         <option value="">全種別</option>
         <option${devType==='リース'?' selected':''}>リース</option>
@@ -823,7 +823,7 @@ function renderVehicles(){
       <div class="stat"><div class="stat-label" style="color:#a32d2d">期限切れ</div><div class="stat-value" style="color:#a32d2d">${VEHICLES.filter(v=>v.status!=='returned'&&vehStatus(v)==='danger').length}</div></div>
     </div>
     <div class="controls">
-      <input id="veh-search" type="text" placeholder="使用者・車種・メーカー・ナンバー・車台番号で検索..." value="${vehQ}" oninput="vehQ=this.value;vehPage=1;renderVehicles()"/>
+      <input id="veh-search" type="text" placeholder="使用者・車種・メーカー・ナンバー・車台番号で検索..." value="${vehQ}" oninput="if(!event.isComposing){vehQ=this.value;vehPage=1;renderVehicles()}" oncompositionend="vehQ=this.value;vehPage=1;renderVehicles()"/>
       <select onchange="vehHonbu=this.value;vehPage=1;renderVehicles()">
         <option value="">全事業本部</option>
         ${honbus.map(h=>`<option value="${h}"${vehHonbu===h?' selected':''}>${h}</option>`).join('')}
@@ -1187,7 +1187,7 @@ function renderPhonebook(){
       <button class="tab-btn${pbTab==='wifi'?' active':''}" onclick="pbTab='wifi';pbSortCol='honbu';pbSortDir=1;renderPhonebook()">📡 Wi-Fiルーター（${allWifi.length}件）</button>
     </div>
     <div class="controls">
-      <input id="pb-search" type="text" placeholder="担当者名・電話番号・事業本部で検索..." value="${pbQ}" oninput="pbQ=this.value;renderPhonebook()"/>
+      <input id="pb-search" type="text" placeholder="担当者名・電話番号・事業本部で検索..." value="${pbQ}" oninput="if(!event.isComposing){pbQ=this.value;renderPhonebook()}" oncompositionend="pbQ=this.value;renderPhonebook()"/>
       <select onchange="pbHonbu=this.value;renderPhonebook()">
         <option value="">全事業本部</option>
         ${honbus.map(h=>`<option value="${h}"${pbHonbu===h?' selected':''}>${h}</option>`).join('')}
