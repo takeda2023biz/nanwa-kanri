@@ -94,9 +94,37 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
 .tab-bar{display:flex;gap:0;border-bottom:2px solid #e8e7e0;margin-bottom:16px;}
 .tab-btn{padding:8px 20px;font-size:13px;color:#888;cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:inherit;}
 .tab-btn.active{color:#1a1a1a;font-weight:600;border-bottom:2px solid #1a1a1a;}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f5f3;}
+.login-card{background:#fff;border:1px solid #e8e7e0;border-radius:14px;padding:36px 32px;width:360px;max-width:92vw;box-shadow:0 8px 32px rgba(0,0,0,0.08);}
+.login-card h1{font-size:16px;font-weight:700;margin-bottom:4px;}
+.login-card p.sub{font-size:12px;color:#888;margin-bottom:22px;}
+.login-card label{font-size:11px;font-weight:600;color:#666;display:block;margin-bottom:4px;}
+.login-card input{width:100%;height:38px;padding:0 12px;border-radius:8px;border:1px solid #d8d7d0;background:#fff;color:#1a1a1a;font-size:13px;font-family:inherit;margin-bottom:14px;box-sizing:border-box;}
+.login-card input:focus{outline:none;border-color:#888;}
+.login-card .btn-primary{width:100%;height:40px;}
+.login-error{font-size:12px;color:#791F1F;background:#FCEBEB;border-radius:8px;padding:8px 12px;margin-bottom:14px;display:none;}
+.login-error.show{display:block;}
+.user-chip{font-size:12px;color:#555;}
+.logout-link{font-size:12px;color:#888;cursor:pointer;text-decoration:underline;background:none;border:none;font-family:inherit;}
+.logout-link:hover{color:#1a1a1a;}
 </style>
 </head>
 <body>
+
+<div class="login-wrap" id="login-screen">
+  <div class="login-card">
+    <h1>管理本部 統合管理システム</h1>
+    <p class="sub">社内メールアドレスでログインしてください</p>
+    <div class="login-error" id="login-error"></div>
+    <label for="li-email">メールアドレス</label>
+    <input type="email" id="li-email" autocomplete="username" placeholder="you@example.com" onkeydown="if(event.key==='Enter')loginSubmit()">
+    <label for="li-pw">パスワード</label>
+    <input type="password" id="li-pw" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')loginSubmit()">
+    <button class="btn btn-primary" onclick="loginSubmit()">ログイン</button>
+  </div>
+</div>
+
+<div id="app-shell" style="display:none">
 
 <div class="topbar">
   <div>
@@ -106,17 +134,19 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
   <div style="display:flex;align-items:center;gap:12px;">
     <span id="sync-status" style="font-size:11px;color:#aaa"></span>
     <span id="today-label" style="font-size:12px;color:#888"></span>
+    <span class="user-chip" id="user-chip"></span>
+    <button class="logout-link" onclick="logoutSubmit()">ログアウト</button>
   </div>
 </div>
 
 <div class="nav">
-  <button class="nav-btn active" onclick="showPage('dashboard',this)">ダッシュボード</button>
-  <button class="nav-btn" onclick="showPage('employees',this)">社員管理</button>
-  <button class="nav-btn" onclick="showPage('devices',this)">機器管理</button>
-  <button class="nav-btn" onclick="showPage('vehicles',this)">車両管理</button>
-  <button class="nav-btn" onclick="showPage('contracts',this)">契約管理</button>
-  <button class="nav-btn" onclick="showPage('alerts',this)">期限アラート</button>
-  <button class="nav-btn" onclick="showPage('phonebook',this)">電話番号帳</button>
+  <button class="nav-btn active" id="nav-dashboard" onclick="showPage('dashboard',this)">ダッシュボード</button>
+  <button class="nav-btn" id="nav-employees" onclick="showPage('employees',this)">社員管理</button>
+  <button class="nav-btn" id="nav-devices" onclick="showPage('devices',this)">機器管理</button>
+  <button class="nav-btn" id="nav-vehicles" onclick="showPage('vehicles',this)">車両管理</button>
+  <button class="nav-btn" id="nav-contracts" onclick="showPage('contracts',this)">契約管理</button>
+  <button class="nav-btn" id="nav-alerts" onclick="showPage('alerts',this)">期限アラート</button>
+  <button class="nav-btn" id="nav-phonebook" onclick="showPage('phonebook',this)">電話番号帳</button>
 </div>
 
 <div class="main">
@@ -296,10 +326,83 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
 
 <div class="toast" id="toast"></div>
 
+</div>
+
 <script>
 const SUPABASE_URL='https://cicxvcjnvkynhukbnrns.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+let CURRENT_USER=null; // {name, email, system_role}
+const ROLE_ALLOWED_PAGES={
+  full:['dashboard','employees','devices','vehicles','contracts','alerts','phonebook'],
+  vehicle_phone:['vehicles','phonebook'],
+  vehicle_only:['vehicles']
+};
+function allowedPages(){return ROLE_ALLOWED_PAGES[CURRENT_USER&&CURRENT_USER.system_role]||ROLE_ALLOWED_PAGES.vehicle_phone;}
+
+function applyRoleUI(){
+  const allowed=allowedPages();
+  document.querySelectorAll('.nav-btn').forEach(b=>{
+    const page=b.id.replace('nav-','');
+    b.style.display=allowed.includes(page)?'':'none';
+  });
+  document.getElementById('user-chip').textContent=(CURRENT_USER.name||CURRENT_USER.email)+(CURRENT_USER.system_role==='vehicle_only'?'（車両管理のみ）':'');
+}
+
+function showLogin(msg){
+  document.getElementById('app-shell').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  const err=document.getElementById('login-error');
+  if(msg){err.textContent=msg;err.classList.add('show');}else{err.classList.remove('show');}
+}
+
+async function afterLogin(session){
+  const email=session.user.email;
+  const {data:emp,error}=await sb.from('employees').select('name,email,system_role').eq('email',email).maybeSingle();
+  if(error||!emp){
+    await sb.auth.signOut();
+    showLogin('このアカウントは社員情報に登録されていません。管理本部にご連絡ください。');
+    return;
+  }
+  CURRENT_USER={name:emp.name,email:emp.email,system_role:emp.system_role||'vehicle_phone'};
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app-shell').style.display='block';
+  applyRoleUI();
+  const allowed=allowedPages();
+  const startPage=allowed.includes('dashboard')?'dashboard':allowed[0];
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+startPage).classList.add('active');
+  const btn=document.getElementById('nav-'+startPage);
+  if(btn)btn.classList.add('active');
+  currentPage=startPage;
+  const ok=await loadAll();
+  const renders={dashboard:renderDashboard,employees:renderEmployees,devices:renderDevices,vehicles:renderVehicles,contracts:renderContracts,alerts:renderAlerts,phonebook:renderPhonebook};
+  if(ok){ if(renders[startPage]) renders[startPage](); }
+  else{ document.getElementById('page-'+startPage).innerHTML='<div style="padding:40px;color:#a32d2d">Supabaseへの接続に失敗しました。</div>'; }
+}
+
+async function checkSession(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){showLogin();return;}
+  await afterLogin(session);
+}
+
+async function loginSubmit(){
+  const email=document.getElementById('li-email').value.trim();
+  const pw=document.getElementById('li-pw').value;
+  if(!email||!pw){showLogin('メールアドレスとパスワードを入力してください');return;}
+  const {data,error}=await sb.auth.signInWithPassword({email,password:pw});
+  if(error){showLogin('ログインに失敗しました：メールアドレスまたはパスワードが違います');return;}
+  await afterLogin(data.session);
+}
+
+async function logoutSubmit(){
+  await sb.auth.signOut();
+  CURRENT_USER=null;
+  location.reload();
+}
 
 const TODAY=new Date();
 document.getElementById('today-label').textContent=
@@ -400,9 +503,10 @@ let EMPLOYEES=[],DEVICES=[],VEHICLES=[];
 
 async function loadAll(){
   setSync('読み込み中...','#888');
+  const restricted=CURRENT_USER&&CURRENT_USER.system_role!=='full';
   const [er,dr,vr]=await Promise.all([
-    sb.from('employees').select('*').order('join_date',{ascending:true}),
-    sb.from('devices').select('*').order('end_date',{ascending:true,nullsFirst:false}),
+    restricted?Promise.resolve({data:[],error:null}):sb.from('employees').select('*').order('join_date',{ascending:true}),
+    restricted?Promise.resolve({data:[],error:null}):sb.from('devices').select('*').order('end_date',{ascending:true,nullsFirst:false}),
     sb.from('vehicles').select('*').order('lease_end_date',{ascending:true,nullsFirst:false})
   ]);
   if(er.error||dr.error||vr.error){setSync('読み込みエラー','#E24B4A');return false;}
@@ -415,6 +519,7 @@ async function loadAll(){
 
 let currentPage='dashboard';
 async function showPage(id,btn){
+  if(!allowedPages().includes(id))return;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
@@ -1286,10 +1391,10 @@ document.addEventListener('compositionend',e=>{
 
 // ── 初期ロード ──
 (async()=>{
-  const ok=await loadAll();
-  if(ok) renderDashboard();
-  else document.getElementById('page-dashboard').innerHTML=
-    '<div style="padding:40px;color:#a32d2d">Supabaseへの接続に失敗しました。</div>';
+  await checkSession();
+  sb.auth.onAuthStateChange((event)=>{
+    if(event==='SIGNED_OUT') location.reload();
+  });
 })();
 </script>
 </body>
