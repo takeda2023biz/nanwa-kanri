@@ -957,17 +957,35 @@ function exportDevCSV(){
 }
 
 // ── 車両管理 ──
-let vehQ='',vehHonbu='',vehOwnership='',vehStatusF='',vehShowReturned=false,vehEditId=null,vehPage=1;
+let vehQ='',vehHonbu='',vehOwnership='',vehStatusF='',vehShowReturned=false,vehEditId=null,vehPage=1,vehSortKey=null,vehSortDir='asc';
 const VEH_PER=20;
 function vehPlateStr(v){
   const parts=[v.plate_region,v.plate_class,v.plate_kana,v.plate_number].filter(Boolean);
   return parts.length?parts.join(' '):'—';
+}
+function vehSortToggle(key){
+  if(vehSortKey===key){vehSortDir=vehSortDir==='asc'?'desc':'asc';}else{vehSortKey=key;vehSortDir='asc';}
+  vehPage=1;renderVehicles();
+}
+function vehSortArrow(key){
+  if(vehSortKey!==key)return '';
+  return vehSortDir==='asc'?' ▲':' ▼';
 }
 function renderVehicles(){
   const filtered=VEHICLES.filter(v=>{
     const mq=!vehQ||(v.assignee||'').includes(vehQ)||(v.model||'').includes(vehQ)||(v.maker||'').includes(vehQ)||(v.plate_number||'').includes(vehQ)||(v.chassis_no||'').includes(vehQ);
     return mq&&(!vehHonbu||v.honbu===vehHonbu)&&(!vehOwnership||v.ownership===vehOwnership)&&(!vehStatusF||vehStatus(v)===vehStatusF)&&(vehShowReturned||v.status!=='returned');
   });
+  if(vehSortKey){
+    const dir=vehSortDir==='asc'?1:-1;
+    filtered.sort((a,b)=>{
+      const av=a[vehSortKey],bv=b[vehSortKey];
+      if(!av&&!bv)return 0;
+      if(!av)return 1;
+      if(!bv)return -1;
+      return dir*(new Date(av)-new Date(bv));
+    });
+  }
   const pages=Math.max(1,Math.ceil(filtered.length/VEH_PER));
   if(vehPage>pages)vehPage=pages;
   const slice=filtered.slice((vehPage-1)*VEH_PER,vehPage*VEH_PER);
@@ -1014,7 +1032,7 @@ function renderVehicles(){
       <table>
         <thead><tr>
           <th>区分</th><th>使用者</th><th>メーカー</th><th>車種</th><th>ナンバー</th><th>事業本部</th>
-          <th>車検満了日</th><th>リース終了日</th><th>状態</th><th>月額</th><th style="width:60px"></th>
+          <th style="cursor:pointer;user-select:none" onclick="vehSortToggle('shaken_expiry')">車検満了日${vehSortArrow('shaken_expiry')}</th><th style="cursor:pointer;user-select:none" onclick="vehSortToggle('lease_end_date')">リース終了日${vehSortArrow('lease_end_date')}</th><th>状態</th><th>月額</th><th style="width:60px"></th>
         </tr></thead>
         <tbody>${slice.length?slice.map(v=>`<tr>
           <td><span class="badge ${v.ownership==='社有車'?'b-sha':'b-purple'}">${v.ownership||'—'}</span>${v.status==='returned'?' <span class="badge b-gray">返却済</span>':''}</td>
