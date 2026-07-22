@@ -124,6 +124,19 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
   </div>
 </div>
 
+<div class="login-wrap" id="setpw-screen" style="display:none">
+  <div class="login-card">
+    <h1>パスワードの設定</h1>
+    <p class="sub">初回ログインです。ログインに使うパスワードを設定してください</p>
+    <div class="login-error" id="setpw-error"></div>
+    <label for="sp-pw">新しいパスワード（8文字以上）</label>
+    <input type="password" id="sp-pw" autocomplete="new-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')setPasswordSubmit()">
+    <label for="sp-pw2">新しいパスワード（確認）</label>
+    <input type="password" id="sp-pw2" autocomplete="new-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')setPasswordSubmit()">
+    <button class="btn btn-primary" onclick="setPasswordSubmit()">設定してログイン</button>
+  </div>
+</div>
+
 <div id="app-shell" style="display:none">
 
 <div class="topbar">
@@ -402,6 +415,31 @@ async function logoutSubmit(){
   await sb.auth.signOut();
   CURRENT_USER=null;
   location.reload();
+}
+
+function isInviteOrRecovery(){
+  return /type=(invite|recovery)/.test(window.location.hash);
+}
+
+function showSetPassword(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app-shell').style.display='none';
+  document.getElementById('setpw-screen').style.display='flex';
+}
+
+async function setPasswordSubmit(){
+  const pw=document.getElementById('sp-pw').value;
+  const pw2=document.getElementById('sp-pw2').value;
+  const err=document.getElementById('setpw-error');
+  err.classList.remove('show');
+  if(!pw||pw.length<8){err.textContent='8文字以上のパスワードを入力してください';err.classList.add('show');return;}
+  if(pw!==pw2){err.textContent='パスワードが一致しません';err.classList.add('show');return;}
+  const {error}=await sb.auth.updateUser({password:pw});
+  if(error){err.textContent='設定に失敗しました：'+error.message;err.classList.add('show');return;}
+  history.replaceState(null,'',window.location.pathname);
+  document.getElementById('setpw-screen').style.display='none';
+  const {data:{session}}=await sb.auth.getSession();
+  if(session) await afterLogin(session); else showLogin();
 }
 
 const TODAY=new Date();
@@ -1391,7 +1429,11 @@ document.addEventListener('compositionend',e=>{
 
 // ── 初期ロード ──
 (async()=>{
-  await checkSession();
+  if(isInviteOrRecovery()){
+    showSetPassword();
+  } else {
+    await checkSession();
+  }
   sb.auth.onAuthStateChange((event)=>{
     if(event==='SIGNED_OUT') location.reload();
   });
