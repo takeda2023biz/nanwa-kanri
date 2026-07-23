@@ -1393,7 +1393,7 @@ function renderPhonebook(){
           ${pbTh('カテゴリ','category')}
           ${pbTh('機種名','name')}
           ${pbTh('管理No','contract_no')}
-          ${isMobile?pbTh('電話番号','phone'):''}
+          ${pbTh('電話番号','phone')}
           ${pbTh('プラン','plan')}
           ${pbTh('データ容量','data_capacity')}
           ${pbTh('契約開始','start_date')}
@@ -1407,13 +1407,13 @@ function renderPhonebook(){
           <td><span class="badge ${d.category==='iPhone'?'b-blue':d.category==='Android'?'b-green':'b-wifi'}">${d.category||'—'}</span></td>
           <td style="font-size:12px">${d.name||'—'}</td>
           <td class="mono">${d.contract_no||'—'}</td>
-          ${isMobile?`<td><span style="font-family:monospace;font-size:13px;font-weight:600">${d.phone||'—'}</span></td>`:''}
+          <td><span style="font-family:monospace;font-size:13px;font-weight:600">${d.phone||'—'}</span></td>
           <td style="font-size:11px">${d.plan||'—'}</td>
           <td style="font-size:11px">${d.data_capacity||'—'}</td>
           <td class="mono">${d.start_date||'—'}</td>
           <td class="mono">${d.end_date||'—'}</td>
           <td>${lsBadge(d.end_date,d.lease_type)}</td>
-        </tr>`).join(''):`<tr><td colspan="${isMobile?12:11}" style="text-align:center;padding:2.5rem;color:#aaa">該当なし</td></tr>`}</tbody>
+        </tr>`).join(''):`<tr><td colspan="12" style="text-align:center;padding:2.5rem;color:#aaa">該当なし</td></tr>`}</tbody>
       </table>
     </div>
   `;
