@@ -1025,16 +1025,16 @@ function renderVehicles(){
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>区分</th><th>使用者</th><th>メーカー</th><th>車種</th><th>ナンバー</th><th>事業本部</th>
+          <th>区分</th><th>事業本部</th><th>使用者</th><th>メーカー</th><th>車種</th><th>ナンバー</th>
           <th>車検満了日</th><th>リース終了日</th><th>状態</th><th>月額</th><th style="width:60px"></th>
         </tr></thead>
         <tbody>${slice.length?slice.map(v=>`<tr>
           <td><span class="badge ${v.ownership==='社有車'?'b-sha':'b-purple'}">${v.ownership||'—'}</span>${v.status==='returned'?' <span class="badge b-gray">返却済</span>':''}</td>
+          <td>${hbBadge(v.honbu)}</td>
           <td style="font-weight:600">${v.assignee||'<span style="color:#ccc">未割当</span>'}</td>
           <td style="font-size:12px">${v.maker||'—'}</td>
           <td style="font-size:12px">${v.model||'—'}</td>
           <td class="mono" style="font-weight:700;font-size:13px;color:#1a1a1a">${vehPlateStr(v)}</td>
-          <td>${hbBadge(v.honbu)}</td>
           <td class="mono" style="font-weight:700;font-size:13px;color:#1a1a1a">${v.shaken_expiry||'—'}</td>
           <td class="mono" style="font-weight:700;font-size:13px;color:#1a1a1a">${v.lease_end_date||'—'}</td>
           <td>${vehBadge(v)}</td>
