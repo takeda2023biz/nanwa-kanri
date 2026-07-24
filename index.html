@@ -252,7 +252,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
             <option>管理本部</option><option>環境衛生事業本部</option><option>衛生管理部</option>
           </select>
         </div>
-        <div class="form-row"><label>担当者</label><input id="df-assignee" placeholder="山田 太郎"/></div>
+        <div class="form-row"><label>担当者</label><input id="df-assignee" placeholder="山田 太郎" list="employee-names-list" autocomplete="off"/></div>
         <div class="form-row"><label>契約開始日</label><input id="df-start" type="date"/></div>
         <div class="form-row"><label>契約終了日</label><input id="df-end" type="date"/></div>
         <div class="form-row"><label>月額（税抜・円）</label><input id="df-monthly" type="number" placeholder="2530"/></div>
@@ -294,7 +294,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
             <option>管理本部</option><option>環境衛生事業本部</option><option>衛生管理部</option>
           </select>
         </div>
-        <div class="form-row"><label>使用者</label><input id="vf-assignee" placeholder="山田 太郎"/></div>
+        <div class="form-row"><label>使用者</label><input id="vf-assignee" placeholder="山田 太郎" list="employee-names-list" autocomplete="off"/></div>
         <div class="form-row"><label>所有区分</label>
           <select id="vf-ownership"><option value="社有車">社有車</option><option value="リース">リース</option></select>
         </div>
@@ -338,6 +338,8 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
 </div>
 
 <div class="toast" id="toast"></div>
+
+<datalist id="employee-names-list"></datalist>
 
 </div>
 
@@ -553,8 +555,16 @@ async function loadAll(){
   EMPLOYEES=er.data||[];
   DEVICES=dr.data||[];
   VEHICLES=vr.data||[];
+  renderEmployeeDatalist();
   setSync('同期済み ✓','#27500A');
   return true;
+}
+
+function renderEmployeeDatalist(){
+  const dl=document.getElementById('employee-names-list');
+  if(!dl) return;
+  const names=[...new Set(EMPLOYEES.map(e=>e.name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
+  dl.innerHTML=names.map(n=>`<option value="${n}"></option>`).join('');
 }
 
 let currentPage='dashboard';
