@@ -119,7 +119,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
     <label for="li-email">メールアドレス</label>
     <input type="email" id="li-email" autocomplete="username" placeholder="you@example.com" onkeydown="if(event.key==='Enter')loginSubmit()">
     <label for="li-pw">パスワード</label>
-    <input type="password" id="li-pw" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')loginSubmit()">
+    <input type="password" id="li-pw" autocomplete="current-password" onkeydown="if(event.key==='Enter')loginSubmit()">
     <button class="btn btn-primary" onclick="loginSubmit()">ログイン</button>
   </div>
 </div>
@@ -130,9 +130,9 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
     <p class="sub">初回ログインです。ログインに使うパスワードを設定してください</p>
     <div class="login-error" id="setpw-error"></div>
     <label for="sp-pw">新しいパスワード（8文字以上）</label>
-    <input type="password" id="sp-pw" autocomplete="new-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')setPasswordSubmit()">
+    <input type="password" id="sp-pw" autocomplete="new-password" onkeydown="if(event.key==='Enter')setPasswordSubmit()">
     <label for="sp-pw2">新しいパスワード（確認）</label>
-    <input type="password" id="sp-pw2" autocomplete="new-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')setPasswordSubmit()">
+    <input type="password" id="sp-pw2" autocomplete="new-password" onkeydown="if(event.key==='Enter')setPasswordSubmit()">
     <button class="btn btn-primary" onclick="setPasswordSubmit()">設定してログイン</button>
   </div>
 </div>
