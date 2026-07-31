@@ -230,7 +230,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
             <option>リース</option><option>レンタル</option><option>携帯</option><option>Wi-Fi</option>
           </select>
         </div>
-        <div class="form-row"><label>区分</label>
+        <div class="form-row" id="df-ownership-row" style="display:none"><label>区分</label>
           <select id="df-ownership">
             <option value="社給">社給</option><option value="個人">個人</option>
           </select>
@@ -866,7 +866,7 @@ function renderDevices(){
         </tr></thead>
         <tbody>${slice.map(d=>`<tr>
           <td><span class="badge ${d.type==='リース'?'b-purple':d.type==='レンタル'?'b-teal':d.type==='Wi-Fi'?'b-wifi':'b-blue'}">${d.type}</span></td>
-          <td><span class="badge ${(d.ownership||'社給')==='個人'?'b-kojin':'b-sha'}">${d.ownership||'社給'}</span></td>
+          <td>${d.type==='携帯'?`<span class="badge ${(d.ownership||'社給')==='個人'?'b-kojin':'b-sha'}">${d.ownership||'社給'}</span>`:'<span style="color:#ccc">—</span>'}</td>
           <td style="font-size:11px">${d.category||''}</td>
           <td style="font-weight:600">${d.name}</td>
           <td class="mono">${d.contract_no||'—'}</td>
@@ -896,6 +896,7 @@ function toggleDevFields(){
   document.getElementById('df-phone-row').style.display=t==='携帯'?'':'none';
   document.getElementById('df-plan-row').style.display=isMobile?'':'none';
   document.getElementById('df-data-row').style.display=isMobile?'':'none';
+  document.getElementById('df-ownership-row').style.display=t==='携帯'?'':'none';
 }
 
 function openDevModal(id){
@@ -969,7 +970,7 @@ async function deleteDevice(){
 
 function exportDevCSV(){
   const h=['種別','区分','カテゴリ','機器名','契約番号','資産番号(OIR)','担当者','事業本部','開始日','終了日','月額','プラン','データ容量','備考'];
-  const rows=DEVICES.map(d=>[d.type,d.ownership||'社給',d.category,d.name,d.contract_no,d.oir_no,d.assignee,d.honbu,d.start_date,d.end_date,d.monthly,d.plan,d.data_capacity,d.note]);
+  const rows=DEVICES.map(d=>[d.type,d.type==='携帯'?(d.ownership||'社給'):'',d.category,d.name,d.contract_no,d.oir_no,d.assignee,d.honbu,d.start_date,d.end_date,d.monthly,d.plan,d.data_capacity,d.note]);
   const csv=[h,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='機器管理一覧.csv';a.click();
 }
@@ -1261,7 +1262,6 @@ function renderContracts(){
     <div class="section-title">Wi-Fiルーター一覧</div>
     ${makeTbl(wifi,[
       ['管理No',d=>`<span class="mono">${d.contract_no||'—'}</span>`,''],
-      ['区分',d=>`<span class="badge ${(d.ownership||'社給')==='個人'?'b-kojin':'b-sha'}">${d.ownership||'社給'}</span>`,''],
       ['機器名',d=>`<b>${d.name}</b>`,''],
       ['担当者',d=>d.assignee||'—',''],
       ['事業本部',d=>hbBadge(d.honbu),''],
@@ -1406,7 +1406,7 @@ function renderPhonebook(){
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div>
         <div style="font-size:20px;font-weight:700">電話番号帳</div>
-        <div style="font-size:12px;color:#888;margin-top:3px">社給・個人 — 携帯・Wi-Fi管理</div>
+        <div style="font-size:12px;color:#888;margin-top:3px">携帯・Wi-Fi管理</div>
       </div>
       <button class="btn" onclick="exportPhoneCSV()">CSVエクスポート</button>
     </div>
@@ -1420,11 +1420,11 @@ function renderPhonebook(){
         <option value="">全事業本部</option>
         ${honbus.map(h=>`<option value="${h}"${pbHonbu===h?' selected':''}>${h}</option>`).join('')}
       </select>
-      <select onchange="pbOwnership=this.value;renderPhonebook()">
+      ${isMobile?`<select onchange="pbOwnership=this.value;renderPhonebook()">
         <option value="">社給＋個人</option>
         <option value="社給"${pbOwnership==='社給'?' selected':''}>社給のみ</option>
         <option value="個人"${pbOwnership==='個人'?' selected':''}>個人のみ</option>
-      </select>
+      </select>`:''}
     </div>
     <div style="font-size:12px;color:#888;margin-bottom:8px">${items.length}件表示</div>
     <div class="tbl-wrap">
@@ -1432,7 +1432,7 @@ function renderPhonebook(){
         <thead><tr>
           ${pbTh('事業本部','honbu')}
           ${pbTh('担当者','assignee')}
-          ${pbTh('区分','ownership')}
+          ${isMobile?pbTh('区分','ownership'):''}
           ${pbTh('カテゴリ','category')}
           ${pbTh('機種名','name')}
           ${pbTh('管理No','contract_no')}
@@ -1446,7 +1446,7 @@ function renderPhonebook(){
         <tbody>${items.length?items.map(d=>`<tr>
           <td>${hbBadge(d.honbu)}</td>
           <td style="font-weight:600">${d.assignee||'<span style="color:#ccc">未割当</span>'}</td>
-          <td><span class="badge ${(d.ownership||'社給')==='個人'?'b-kojin':'b-sha'}">${d.ownership||'社給'}</span></td>
+          ${isMobile?`<td><span class="badge ${(d.ownership||'社給')==='個人'?'b-kojin':'b-sha'}">${d.ownership||'社給'}</span></td>`:''}
           <td><span class="badge ${d.category==='iPhone'?'b-blue':d.category==='Android'?'b-green':'b-wifi'}">${d.category||'—'}</span></td>
           <td style="font-size:12px">${d.name||'—'}</td>
           <td class="mono">${d.contract_no||'—'}</td>
@@ -1456,7 +1456,7 @@ function renderPhonebook(){
           <td class="mono">${d.start_date||'—'}</td>
           <td class="mono">${d.end_date||'—'}</td>
           <td>${lsBadge(d.end_date,d.lease_type)}</td>
-        </tr>`).join(''):`<tr><td colspan="${isMobile?12:11}" style="text-align:center;padding:2.5rem;color:#aaa">該当なし</td></tr>`}</tbody>
+        </tr>`).join(''):`<tr><td colspan="${isMobile?12:10}" style="text-align:center;padding:2.5rem;color:#aaa">該当なし</td></tr>`}</tbody>
       </table>
     </div>
   `;
@@ -1464,9 +1464,14 @@ function renderPhonebook(){
 }
 
 function exportPhoneCSV(){
-  const items=DEVICES.filter(d=>d.type===(pbTab==='mobile'?'携帯':'Wi-Fi'));
-  const h=['事業本部','担当者','区分','カテゴリ','機種名','管理No','電話番号','プラン','データ容量','契約開始','契約終了'];
-  const rows=items.map(d=>[d.honbu,d.assignee,d.ownership||'社給',d.category,d.name,d.contract_no,d.phone||'',d.plan||'',d.data_capacity||'',d.start_date||'',d.end_date||'']);
+  const isMobile=pbTab==='mobile';
+  const items=DEVICES.filter(d=>d.type===(isMobile?'携帯':'Wi-Fi'));
+  const h=isMobile
+    ?['事業本部','担当者','区分','カテゴリ','機種名','管理No','電話番号','プラン','データ容量','契約開始','契約終了']
+    :['事業本部','担当者','カテゴリ','機種名','管理No','電話番号','プラン','データ容量','契約開始','契約終了'];
+  const rows=items.map(d=>isMobile
+    ?[d.honbu,d.assignee,d.ownership||'社給',d.category,d.name,d.contract_no,d.phone||'',d.plan||'',d.data_capacity||'',d.start_date||'',d.end_date||'']
+    :[d.honbu,d.assignee,d.category,d.name,d.contract_no,d.phone||'',d.plan||'',d.data_capacity||'',d.start_date||'',d.end_date||'']);
   const csv=[h,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
   a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
