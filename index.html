@@ -74,6 +74,7 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
 .form-row input,.form-row select,.form-row textarea{height:36px;padding:0 12px;border-radius:8px;border:1px solid #d8d7d0;background:#fff;color:#1a1a1a;font-size:13px;font-family:inherit;}
 .form-row input:focus,.form-row select:focus,.form-row textarea:focus{outline:none;border-color:#888;}
 .form-row textarea{height:72px;padding:10px 12px;resize:none;}
+.form-row input::placeholder,.form-row textarea::placeholder{color:#c2c1ba;font-style:italic;}
 .form-section{font-size:11px;font-weight:600;color:#888;grid-column:1/-1;padding-top:8px;border-top:1px solid #e8e7e0;margin-top:4px;letter-spacing:.05em;}
 .detail-panel{background:#fff;border:1px solid #e8e7e0;border-radius:10px;padding:20px;margin-top:14px;}
 .device-card{background:#f9f9f7;border-radius:8px;padding:10px 12px;}
@@ -321,9 +322,14 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
         <div class="form-row"><label>月額合計（円）</label><input id="vf-monthly" type="number"/></div>
         <div class="form-section">車検・点検</div>
         <div class="form-row"><label>車検証有効期間満了日</label><input id="vf-shaken" type="date"/></div>
-        <div class="form-row"><label>点検実施日</label><input id="vf-inspdate" type="date"/></div>
-        <div class="form-row"><label>点検案内日</label><input id="vf-notice" placeholder="4/23今村課長 LINE"/></div>
-        <div class="form-row"><label>点検内容</label><input id="vf-content" placeholder="7/16 車検"/></div>
+        <div class="form-row"><label>点検日</label><input id="vf-inspdate" type="date"/></div>
+        <div class="form-row"><label>点検案内日</label><input id="vf-notice" placeholder="例：4/23 今村課長 LINE"/></div>
+        <div class="form-row"><label>案内済み</label>
+          <label style="display:flex;align-items:center;gap:6px;height:36px;font-size:13px;color:#555;font-weight:400;cursor:pointer;">
+            <input type="checkbox" id="vf-notice-done" style="width:16px;height:16px;flex-shrink:0;"/>案内を実施済み
+          </label>
+        </div>
+        <div class="form-row full"><label>点検内容</label><input id="vf-content" placeholder="例：7/16 車検"/></div>
         <div class="form-row full"><label>備考</label><textarea id="vf-note" placeholder="特記事項など"></textarea></div>
       </div>
     </div>
@@ -1026,7 +1032,7 @@ function renderVehicles(){
       <table>
         <thead><tr>
           <th>区分</th><th>事業本部</th><th>使用者</th><th>メーカー</th><th>車種</th><th>ナンバー</th>
-          <th>車検満了日</th><th>リース終了日</th><th>状態</th><th>月額</th><th style="width:60px"></th>
+          <th>車検満了日</th><th>リース終了日</th><th>点検日</th><th style="text-align:center">案内</th><th>状態</th><th>月額</th><th style="width:60px"></th>
         </tr></thead>
         <tbody>${slice.length?slice.map(v=>`<tr>
           <td><span class="badge ${v.ownership==='社有車'?'b-sha':'b-purple'}">${v.ownership||'—'}</span>${v.status==='returned'?' <span class="badge b-gray">返却済</span>':''}</td>
@@ -1037,10 +1043,12 @@ function renderVehicles(){
           <td class="mono" style="font-weight:700;font-size:13px;color:#1a1a1a">${vehPlateStr(v)}</td>
           <td class="mono" style="font-weight:700;font-size:13px;color:#1a1a1a">${v.shaken_expiry||'—'}</td>
           <td class="mono" style="font-weight:700;font-size:13px;color:#1a1a1a">${v.lease_end_date||'—'}</td>
+          <td class="mono" style="font-size:12px">${v.inspection_date||'—'}</td>
+          <td style="text-align:center"><input type="checkbox" ${v.notice_done?'checked':''} onchange="toggleNoticeDone('${v.id}',this.checked)" style="width:16px;height:16px;"/></td>
           <td>${vehBadge(v)}</td>
           <td style="text-align:right;font-family:monospace;font-size:11px">${v.monthly_total?Number(v.monthly_total).toLocaleString():'—'}</td>
           <td><button class="btn" style="height:28px;padding:0 10px;font-size:11px" onclick="openVehModal('${v.id}')">編集</button></td>
-        </tr>`).join(''):`<tr><td colspan="11" style="text-align:center;padding:2.5rem;color:#aaa">該当なし</td></tr>`}</tbody>
+        </tr>`).join(''):`<tr><td colspan="13" style="text-align:center;padding:2.5rem;color:#aaa">該当なし</td></tr>`}</tbody>
       </table>
     </div>
     <div class="pagination">
@@ -1083,10 +1091,12 @@ function openVehModal(id){
     document.getElementById('vf-shaken').value=v.shaken_expiry||'';
     document.getElementById('vf-inspdate').value=v.inspection_date||'';
     document.getElementById('vf-notice').value=v.inspection_notice||'';
+    document.getElementById('vf-notice-done').checked=!!v.notice_done;
     document.getElementById('vf-content').value=v.inspection_content||'';
     document.getElementById('vf-note').value=v.note||'';
   } else {
     ids.forEach(i=>document.getElementById(i).value='');
+    document.getElementById('vf-notice-done').checked=false;
     document.getElementById('vf-honbu').value='';
     document.getElementById('vf-ownership').selectedIndex=0;
     document.getElementById('vf-status').selectedIndex=0;
@@ -1121,6 +1131,7 @@ async function saveVehicle(){
     inspection_date:document.getElementById('vf-inspdate').value||null,
     inspection_notice:document.getElementById('vf-notice').value.trim()||null,
     inspection_content:document.getElementById('vf-content').value.trim()||null,
+    notice_done:document.getElementById('vf-notice-done').checked,
     note:document.getElementById('vf-note').value.trim()||null,
     updated_at:new Date().toISOString()};
   if(!d.assignee&&!d.model&&!d.plate_number){alert('使用者・車種・ナンバーのいずれかを入力してください');return;}
@@ -1139,11 +1150,19 @@ async function deleteVehicle(){
   closeVehModal();await loadAll();renderVehicles();toast('削除しました');
 }
 
+async function toggleNoticeDone(id,checked){
+  const {error}=await sb.from('vehicles').update({notice_done:checked,updated_at:new Date().toISOString()}).eq('id',id);
+  if(error){alert('更新エラー: '+error.message);return;}
+  const v=VEHICLES.find(x=>x.id===id);
+  if(v) v.notice_done=checked;
+  toast('更新しました');
+}
+
 function exportVehCSV(){
   const h=['事業本部','使用者','所有区分','状態','メーカー','車種','車台番号','ナンバー','リース会社','取次店',
-    'リース開始日','リース終了日','車検満了日','点検実施日','月額合計','備考'];
+    'リース開始日','リース終了日','車検満了日','点検日','案内済み','月額合計','備考'];
   const rows=VEHICLES.map(v=>[v.honbu,v.assignee,v.ownership,v.status,v.maker,v.model,v.chassis_no,vehPlateStr(v),
-    v.lease_company,v.agent,v.lease_start_date,v.lease_end_date,v.shaken_expiry,v.inspection_date,v.monthly_total,v.note]);
+    v.lease_company,v.agent,v.lease_start_date,v.lease_end_date,v.shaken_expiry,v.inspection_date,v.notice_done?'済':'',v.monthly_total,v.note]);
   const csv=[h,...rows].map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);a.download='車両管理一覧.csv';a.click();
 }
