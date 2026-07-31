@@ -976,16 +976,46 @@ function exportDevCSV(){
 
 // ── 車両管理 ──
 let vehQ='',vehHonbu='',vehOwnership='',vehStatusF='',vehShowReturned=false,vehEditId=null,vehPage=1;
+let vehSortCol=null,vehSortDir=1;  // 一覧のソート状態（未指定時は期限順のデフォルト表示のまま）
 const VEH_PER=20;
 function vehPlateStr(v){
   const parts=[v.plate_region,v.plate_class,v.plate_kana,v.plate_number].filter(Boolean);
   return parts.length?parts.join(' '):'—';
+}
+function vehSortVal(v,col){
+  switch(col){
+    case 'honbu':           return v.honbu||'';
+    case 'shaken_expiry':   return v.shaken_expiry||'';
+    case 'lease_end_date':  return v.lease_end_date||'';
+    case 'inspection_date': return v.inspection_date||'';
+    case 'notice_done':     return v.notice_done?'1':'0';
+    default: return '';
+  }
+}
+function vehSetSort(col){
+  if(vehSortCol===col) vehSortDir=-vehSortDir;
+  else { vehSortCol=col; vehSortDir=1; }
+  renderVehicles();
+}
+function vehTh(label,col,align){
+  const active=vehSortCol===col;
+  const cls='sortable'+(active?(vehSortDir===1?' sort-asc':' sort-desc'):'');
+  const icon=active?(vehSortDir===1?'▲':'▼'):'⇅';
+  const styleAttr=align?` style="text-align:${align}"`:'';
+  return `<th class="${cls}"${styleAttr} onclick="vehSetSort('${col}')">${label} <span class="sort-icon">${icon}</span></th>`;
 }
 function renderVehicles(){
   const filtered=VEHICLES.filter(v=>{
     const mq=!vehQ||(v.assignee||'').includes(vehQ)||(v.model||'').includes(vehQ)||(v.maker||'').includes(vehQ)||(v.plate_number||'').includes(vehQ)||(v.chassis_no||'').includes(vehQ);
     return mq&&(!vehHonbu||v.honbu===vehHonbu)&&(!vehOwnership||v.ownership===vehOwnership)&&(!vehStatusF||vehStatus(v)===vehStatusF)&&(vehShowReturned||v.status!=='returned');
   });
+  if(vehSortCol){
+    filtered.sort((a,b)=>{
+      const va=vehSortVal(a,vehSortCol),vb=vehSortVal(b,vehSortCol);
+      const cmp=va.localeCompare(vb,'ja',{numeric:true});
+      return cmp*vehSortDir;
+    });
+  }
   const pages=Math.max(1,Math.ceil(filtered.length/VEH_PER));
   if(vehPage>pages)vehPage=pages;
   const slice=filtered.slice((vehPage-1)*VEH_PER,vehPage*VEH_PER);
@@ -1031,8 +1061,8 @@ function renderVehicles(){
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>区分</th><th>事業本部</th><th>使用者</th><th>メーカー</th><th>車種</th><th>ナンバー</th>
-          <th>車検満了日</th><th>リース終了日</th><th>点検日</th><th style="text-align:center">案内</th><th>状態</th><th>月額</th><th style="width:60px"></th>
+          <th>区分</th>${vehTh('事業本部','honbu')}<th>使用者</th><th>メーカー</th><th>車種</th><th>ナンバー</th>
+          ${vehTh('車検満了日','shaken_expiry')}${vehTh('リース終了日','lease_end_date')}${vehTh('点検日','inspection_date')}${vehTh('案内','notice_done','center')}<th>状態</th><th>月額</th><th style="width:60px"></th>
         </tr></thead>
         <tbody>${slice.length?slice.map(v=>`<tr>
           <td><span class="badge ${v.ownership==='社有車'?'b-sha':'b-purple'}">${v.ownership||'—'}</span>${v.status==='returned'?' <span class="badge b-gray">返却済</span>':''}</td>
