@@ -465,7 +465,8 @@ function initials(n){const p=(n||'').trim().split(/[\s　]+/);return p.length>=2
 const HB_CLS={'建設事業本部':'b-blue','建設資材事業本部':'b-teal','エネルギー事業本部':'b-amber','管理本部':'b-purple','環境衛生事業本部':'b-green','衛生管理部':'b-pink'};
 function hbBadge(h){return `<span class="badge ${HB_CLS[h]||'b-gray'}">${h||'—'}</span>`;}
 
-function leaseStatus(end){
+function leaseStatus(end,lt){
+  if(lt==='満了') return 'none';
   if(!end||end==='—') return 'none';
   const days=(new Date(end)-TODAY)/86400000;
   if(days<0) return 'danger';
@@ -474,7 +475,8 @@ function leaseStatus(end){
 }
 function lsBadge(end,lt){
   if(lt==='再リース') return '<span class="badge b-purple">再リース中</span>';
-  const s=leaseStatus(end);
+  if(lt==='満了') return '<span class="badge b-gray">満了</span>';
+  const s=leaseStatus(end,lt);
   if(s==='danger') return '<span class="badge b-red">期限切れ</span>';
   if(s==='warn') return '<span class="badge b-amber">まもなく</span>';
   if(s==='none') return '<span class="badge b-gray">—</span>';
@@ -589,8 +591,8 @@ async function showPage(id,btn){
 // ── ダッシュボード ──
 function renderDashboard(){
   const activeVeh=VEHICLES.filter(v=>v.status!=='returned');
-  const danger=[...DEVICES.filter(d=>leaseStatus(d.end_date)==='danger'),...activeVeh.filter(v=>vehStatus(v)==='danger')];
-  const warn=[...DEVICES.filter(d=>leaseStatus(d.end_date)==='warn'),...activeVeh.filter(v=>vehStatus(v)==='warn')];
+  const danger=[...DEVICES.filter(d=>leaseStatus(d.end_date,d.lease_type)==='danger'),...activeVeh.filter(v=>vehStatus(v)==='danger')];
+  const warn=[...DEVICES.filter(d=>leaseStatus(d.end_date,d.lease_type)==='warn'),...activeVeh.filter(v=>vehStatus(v)==='warn')];
   const totalM=DEVICES.reduce((s,d)=>s+(parseInt(d.monthly)||0),0);
   const hbCnt={};
   EMPLOYEES.forEach(e=>{hbCnt[e.honbu]=(hbCnt[e.honbu]||0)+1;});
@@ -630,7 +632,7 @@ function renderDashboard(){
     <div class="section-title">期限アラート（直近${alerts.length}件）</div>
     ${alerts.length?alerts.map(x=>{
       const isVeh=x.end_date===undefined;
-      const s=isVeh?vehStatus(x):leaseStatus(x.end_date);
+      const s=isVeh?vehStatus(x):leaseStatus(x.end_date,x.lease_type);
       const d=isVeh?vehCritical(x).date:x.end_date;
       const label=isVeh?(x.model||x.maker||'車両')+'（'+(x.assignee||'未割当')+'）':x.name;
       const typeTxt=isVeh?'車両・'+vehCritical(x).label:x.type;
@@ -815,7 +817,7 @@ const DEV_PER=20;
 function renderDevices(){
   const filtered=DEVICES.filter(d=>{
     const mq=!devQ||d.name.toLowerCase().includes(devQ.toLowerCase())||(d.contract_no||'').includes(devQ)||(d.assignee||'').includes(devQ)||(d.oir_no||'').includes(devQ);
-    return mq&&(!devType||d.type===devType)&&(!devHonbu||d.honbu===devHonbu)&&(!devStatus||leaseStatus(d.end_date)===devStatus);
+    return mq&&(!devType||d.type===devType)&&(!devHonbu||d.honbu===devHonbu)&&(!devStatus||(devStatus==='満了'?d.lease_type==='満了':leaseStatus(d.end_date,d.lease_type)===devStatus));
   });
   const pages=Math.max(1,Math.ceil(filtered.length/DEV_PER));
   if(devPage>pages)devPage=pages;
@@ -855,6 +857,7 @@ function renderDevices(){
         <option value="danger"${devStatus==='danger'?' selected':''}>期限切れ</option>
         <option value="warn"${devStatus==='warn'?' selected':''}>6ヶ月以内</option>
         <option value="ok"${devStatus==='ok'?' selected':''}>正常</option>
+        <option value="満了"${devStatus==='満了'?' selected':''}>満了</option>
       </select>
     </div>
     <div class="tbl-wrap">
@@ -1289,11 +1292,11 @@ function renderContracts(){
 // ── 期限アラート ──
 function renderAlerts(){
   const activeVeh=VEHICLES.filter(v=>v.status!=='returned');
-  const danger=[...DEVICES.filter(d=>leaseStatus(d.end_date)==='danger'),...activeVeh.filter(v=>vehStatus(v)==='danger')]
+  const danger=[...DEVICES.filter(d=>leaseStatus(d.end_date,d.lease_type)==='danger'),...activeVeh.filter(v=>vehStatus(v)==='danger')]
     .sort((a,b)=>new Date((a.end_date!==undefined?a.end_date:vehCritical(a).date))-new Date((b.end_date!==undefined?b.end_date:vehCritical(b).date)));
-  const warn=[...DEVICES.filter(d=>leaseStatus(d.end_date)==='warn'),...activeVeh.filter(v=>vehStatus(v)==='warn')]
+  const warn=[...DEVICES.filter(d=>leaseStatus(d.end_date,d.lease_type)==='warn'),...activeVeh.filter(v=>vehStatus(v)==='warn')]
     .sort((a,b)=>new Date((a.end_date!==undefined?a.end_date:vehCritical(a).date))-new Date((b.end_date!==undefined?b.end_date:vehCritical(b).date)));
-  const okCount=DEVICES.filter(d=>leaseStatus(d.end_date)==='ok').length+activeVeh.filter(v=>vehStatus(v)==='ok').length;
+  const okCount=DEVICES.filter(d=>leaseStatus(d.end_date,d.lease_type)==='ok').length+activeVeh.filter(v=>vehStatus(v)==='ok').length;
   const makeList=(items,color,title)=>`
     <div class="section-title" style="color:${color}">${title}（${items.length}件）</div>
     ${items.length?items.map(x=>{
