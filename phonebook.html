@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
 <title>電話番号帳 | 南和グループ</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -40,15 +41,27 @@ tr:hover td{background:#fafafa}
 .empty{padding:40px;text-align:center;color:#aaa;font-size:14px}
 .export-btn{padding:8px 16px;background:#1a2d5a;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap}
 .export-btn:hover{background:#2a3d6a}
+.tabs{display:flex;gap:4px;padding:12px 24px 0;background:#fff}
+.tab{padding:10px 18px;border:none;background:none;font-size:14px;color:#666;cursor:pointer;border-bottom:3px solid transparent;font-family:inherit}
+.tab.active{color:#1a2d5a;font-weight:700;border-bottom-color:#1a2d5a}
+.tab .n{font-size:11px;color:#999;margin-left:4px}
+.mono{font-family:monospace;font-size:12px;color:#555}
+a.phone-num{color:#1a2d5a;text-decoration:none}
+a.phone-num:hover{text-decoration:underline}
+@media(max-width:600px){header,.toolbar,.tabs{padding-left:16px;padding-right:16px}.tbl-wrap{padding:0 16px 16px}.count{padding:8px 16px}th,td{padding:8px}}
 </style>
 </head>
 <body>
 <header>
   <h1>電話番号帳</h1>
-  <p id="subtitle">社給携帯 — 電話番号一覧</p>
+  <p id="subtitle">社給携帯・Wi-Fiルーター 一覧（個人携帯は掲載していません）</p>
 </header>
+<div class="tabs">
+  <button class="tab active" data-kind="携帯" onclick="setTab('携帯')">社給携帯<span class="n" id="n-携帯"></span></button>
+  <button class="tab" data-kind="Wi-Fi" onclick="setTab('Wi-Fi')">Wi-Fiルーター<span class="n" id="n-Wi-Fi"></span></button>
+</div>
 <div class="toolbar">
-  <input type="text" id="search" placeholder="担当者名・電話番号・事業本部で検索..." oninput="render()">
+  <input type="text" id="search" placeholder="氏名・電話番号・管理No・事業本部で検索..." oninput="render()">
   <select id="f-honbu" onchange="render()"><option value="">全事業本部</option></select>
   <button class="export-btn" onclick="exportCSV()">CSVエクスポート</button>
 </div>
@@ -70,21 +83,30 @@ const HB_CLS = {
 };
 
 let DATA = [];
-let sortCol = 'yomi', sortDir = 1;
+let TAB = '携帯';
+let sortCol = 'honbu', sortDir = 1;
 
 function esc(v){
   return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+const digits = v => String(v||'').replace(/[^0-9]/g,'');
 
 async function load(){
-  // 公開用関数：社給携帯の 事業本部・氏名・読み・カテゴリ・番号 のみ返す
-  const {data, error} = await sb.rpc('public_phonebook');
+  // 公開用関数：社給携帯＋Wi-Fiの 種別・事業本部・氏名・読み・管理No・番号 のみ返す
+  let {data, error} = await sb.rpc('public_directory');
   if(error){
-    document.getElementById('tbl-wrap').innerHTML =
-      '<div class="empty">データの読み込みに失敗しました</div>';
-    return;
+    // 旧関数（社給携帯のみ）で代替表示
+    const r = await sb.rpc('public_phonebook');
+    if(r.error){
+      document.getElementById('tbl-wrap').innerHTML = '<div class="empty">データの読み込みに失敗しました</div>';
+      return;
+    }
+    data = (r.data||[]).map(d=>({...d, kind:'携帯', contract_no:null}));
   }
   DATA = data || [];
+  ['携帯','Wi-Fi'].forEach(k=>{
+    document.getElementById('n-'+k).textContent = DATA.filter(d=>d.kind===k).length;
+  });
   const honbus = [...new Set(DATA.map(d=>d.honbu).filter(Boolean))];
   const sel = document.getElementById('f-honbu');
   honbus.forEach(h=>{
@@ -92,6 +114,15 @@ async function load(){
     o.value = h; o.textContent = h;
     sel.appendChild(o);
   });
+  const h = decodeURIComponent(location.hash.slice(1));
+  if(h === 'wifi' || h === 'Wi-Fi') TAB = 'Wi-Fi';
+  setTab(TAB);
+}
+
+function setTab(k){
+  TAB = k;
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.kind===k));
+  try{ history.replaceState(null,'', k==='Wi-Fi' ? '#wifi' : location.pathname + location.search); }catch(e){}
   render();
 }
 
@@ -109,13 +140,16 @@ function sortIcon(col){
 
 function filteredData(){
   const q = document.getElementById('search').value.trim();
+  const qd = digits(q);
   const hb = document.getElementById('f-honbu').value;
   return DATA.filter(d=>{
+    if(d.kind !== TAB) return false;
     const mq = !q ||
-      (d.assignee||'').includes(q) ||
+      (d.assignee||'').replace(/[\s　]/g,'').includes(q.replace(/[\s　]/g,'')) ||
       (d.yomi||'').includes(q) ||
-      (d.phone||'').includes(q) ||
-      (d.honbu||'').includes(q);
+      (d.honbu||'').includes(q) ||
+      (d.contract_no||'').toLowerCase().includes(q.toLowerCase()) ||
+      (qd.length >= 3 && digits(d.phone).includes(qd));
     const mh = !hb || d.honbu === hb;
     return mq && mh;
   });
@@ -124,24 +158,29 @@ function filteredData(){
 function render(){
   const filtered = filteredData();
   filtered.sort((a,b)=>{
-    let av = a[sortCol]||'', bv = b[sortCol]||'';
-    if(sortCol === 'assignee') { av = a.yomi||''; bv = b.yomi||''; }
-    return av < bv ? -sortDir : av > bv ? sortDir : 0;
+    const key = d => sortCol === 'assignee' ? (d.yomi||d.assignee||'') : (d[sortCol]||'');
+    const av = key(a), bv = key(b);
+    if(!av !== !bv) return av ? -1 : 1;           // 空欄は常に末尾
+    if(av !== bv) return av < bv ? -sortDir : sortDir;
+    const an = a.yomi||a.assignee||'', bn = b.yomi||b.assignee||'';  // 同じ値は氏名順
+    if(!an !== !bn) return an ? -1 : 1;
+    return an < bn ? -1 : an > bn ? 1 : 0;
   });
   document.getElementById('count').textContent = `${filtered.length}件表示`;
   if(!filtered.length){
     document.getElementById('tbl-wrap').innerHTML =
-      '<div class="empty">該当する番号が見つかりません</div>';
+      '<div class="empty">該当するデータが見つかりません</div>';
     return;
   }
+  const numLabel = TAB === 'Wi-Fi' ? '番号' : '携帯番号';
   document.getElementById('tbl-wrap').innerHTML = `
     <table>
       <thead>
         <tr>
           <th style="width:170px" onclick="sortBy('honbu')">事業本部${sortIcon('honbu')}</th>
-          <th style="width:140px" onclick="sortBy('assignee')">担当者${sortIcon('assignee')}</th>
-          <th style="width:90px" onclick="sortBy('category')">カテゴリ${sortIcon('category')}</th>
-          <th onclick="sortBy('phone')">携帯番号${sortIcon('phone')}</th>
+          <th style="width:140px" onclick="sortBy('assignee')">氏名${sortIcon('assignee')}</th>
+          <th onclick="sortBy('phone')">${numLabel}${sortIcon('phone')}</th>
+          <th style="width:120px" onclick="sortBy('contract_no')">管理No${sortIcon('contract_no')}</th>
         </tr>
       </thead>
       <tbody>
@@ -149,8 +188,8 @@ function render(){
           <tr>
             <td><span class="badge ${HB_CLS[d.honbu]||'b-gray'}">${esc(d.honbu)||'—'}</span></td>
             <td style="font-weight:600">${d.assignee?esc(d.assignee):'<span style="color:#ccc">未割当</span>'}</td>
-            <td><span class="badge ${d.category==='iPhone'?'b-iphone':d.category==='Android'?'b-android':'b-ipad'}">${esc(d.category)||'—'}</span></td>
-            <td><span class="phone-num">${esc(d.phone)||'—'}</span></td>
+            <td>${d.phone?`<a class="phone-num" href="tel:${digits(d.phone)}">${esc(d.phone)}</a>`:'<span style="color:#ccc">—</span>'}</td>
+            <td><span class="mono">${esc(d.contract_no)||'—'}</span></td>
           </tr>`).join('')}
       </tbody>
     </table>
@@ -158,14 +197,14 @@ function render(){
 }
 
 function exportCSV(){
-  const rows = [['事業本部','担当者','カテゴリ','携帯番号']];
-  filteredData().forEach(d=>rows.push([d.honbu,d.assignee,d.category,d.phone]));
+  const rows = [['事業本部','氏名', TAB==='Wi-Fi'?'番号':'携帯番号','管理No']];
+  filteredData().forEach(d=>rows.push([d.honbu,d.assignee,d.phone,d.contract_no]));
   const csv = rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const bom = '﻿';
   const blob = new Blob([bom+csv],{type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = '電話番号帳.csv';
+  a.download = TAB==='Wi-Fi' ? 'Wi-Fiルーター一覧.csv' : '社給携帯一覧.csv';
   a.click();
 }
 
