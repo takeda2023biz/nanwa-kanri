@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>建設 現場・予定管理</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:14px;background:#f5f5f3;color:#1a1a1a;min-height:100vh;}
+.topbar{background:#fff;border-bottom:1px solid #e0dfd8;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:52px;position:sticky;top:0;z-index:100;}
+.topbar-title{font-size:16px;font-weight:600;}
+.topbar-sub{font-size:11px;color:#888;margin-top:2px;}
+.phase-chip{font-size:11px;background:#FAEEDA;color:#633806;padding:3px 10px;border-radius:20px;font-weight:600;}
+.nav{background:#fff;border-bottom:1px solid #e0dfd8;padding:0 24px;display:flex;position:sticky;top:52px;z-index:99;overflow-x:auto;}
+.nav-btn{padding:12px 20px;font-size:13px;color:#666;cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;font-family:inherit;white-space:nowrap;}
+.nav-btn.active{color:#1a1a1a;font-weight:600;border-bottom:2px solid #1a1a1a;}
+.nav-btn:hover:not(.active){color:#1a1a1a;background:#f9f9f7;}
+.main{padding:24px;max-width:1400px;margin:0 auto;}
+.page{display:none;}.page.active{display:block;}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
+.b-blue{background:#E6F1FB;color:#0C447C;}
+.b-green{background:#EAF3DE;color:#27500A;}
+.b-amber{background:#FAEEDA;color:#633806;}
+.b-red{background:#FCEBEB;color:#791F1F;}
+.b-gray{background:#F1EFE8;color:#5F5E5A;}
+.controls{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+.controls input,.controls select{height:36px;padding:0 12px;border-radius:8px;border:1px solid #d8d7d0;background:#fff;color:#1a1a1a;font-size:13px;font-family:inherit;}
+.controls input.grow{flex:1;min-width:180px;}
+.btn{height:36px;padding:0 16px;border-radius:8px;border:1px solid #d8d7d0;background:#fff;color:#1a1a1a;font-size:13px;cursor:pointer;font-family:inherit;font-weight:500;white-space:nowrap;}
+.btn:hover{background:#f5f5f3;}
+.btn:disabled{opacity:.5;cursor:default;}
+.btn-primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}
+.btn-primary:hover{background:#333;}
+.btn-danger{background:#FCEBEB;color:#791F1F;border-color:#F09595;}
+.btn-sm{height:26px;padding:0 8px;font-size:11px;border-radius:6px;}
+.month-label{font-weight:700;font-size:15px;min-width:96px;text-align:center;}
+.spacer{flex:1;}
+.tbl-wrap{border:1px solid #e8e7e0;border-radius:10px;overflow:auto;background:#fff;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{background:#f9f9f7;padding:9px 10px;text-align:left;font-weight:600;font-size:11px;color:#666;border-bottom:1px solid #e8e7e0;white-space:nowrap;position:sticky;top:0;z-index:1;}
+tbody tr{border-bottom:1px solid #eeede8;}
+tbody td{padding:6px 10px;vertical-align:middle;}
+tbody tr.clickable{cursor:pointer;}
+tbody tr.clickable:hover{background:#fafaf8;}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
+.muted{color:#999;font-size:11px;}
+.mono{font-family:monospace;font-size:12px;}
+/* 予定入力 */
+.sched-layout{display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start;}
+@media(max-width:1000px){.sched-layout{grid-template-columns:1fr;}}
+.sched-scroll{max-height:calc(100vh - 230px);overflow:auto;}
+table.sched td{padding:4px 8px;}
+table.sched select,table.sched input{height:30px;padding:0 6px;border:1px solid #d8d7d0;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;}
+table.sched select:disabled,table.sched input:disabled{background:#f3f3f0;color:#aaa;}
+table.sched tr.day-start{border-top:1px solid #d8d7d0;}
+table.sched tr.off td.date-cell{color:#b45309;}
+table.sched tr.dirty{background:#FFFBEB;}
+table.sched .need{border-color:#e08a2c!important;background:#FFF4E5!important;}
+.date-cell{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600;width:70px;}
+.date-cell .dow{font-weight:400;font-size:11px;margin-left:3px;}
+.date-cell .hol{display:block;font-size:10px;font-weight:400;color:#b45309;}
+.st{font-size:11px;white-space:nowrap;}
+.st-ok{color:#27500A;}.st-dirty{color:#633806;font-weight:600;}.st-need{color:#b91c1c;font-weight:700;}.st-empty{color:#bbb;}
+.panel{background:#fff;border:1px solid #e8e7e0;border-radius:10px;overflow:hidden;}
+.panel h3{font-size:12px;padding:10px 14px;background:#f9f9f7;border-bottom:1px solid #e8e7e0;}
+.sum-row{display:flex;justify-content:space-between;gap:8px;padding:6px 14px;font-size:12px;border-bottom:1px solid #f0efea;}
+.sum-row .v{font-weight:700;font-variant-numeric:tabular-nums;}
+.sum-total{display:flex;justify-content:space-between;padding:10px 14px;font-weight:700;font-size:13px;background:#f9f9f7;}
+.hint{font-size:11px;color:#888;padding:10px 14px;line-height:1.7;}
+/* モーダル */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:flex-start;justify-content:center;z-index:200;overflow:auto;padding:40px 16px;}
+.modal-bg.open{display:flex;}
+.modal{background:#fff;border-radius:12px;width:100%;max-width:640px;padding:22px 24px;}
+.modal h2{font-size:16px;margin-bottom:14px;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;}
+.form-row{display:flex;flex-direction:column;gap:4px;}
+.form-row.full{grid-column:1/-1;}
+.form-row label{font-size:11px;color:#666;}
+.form-row input,.form-row select,.form-row textarea{height:36px;padding:0 10px;border-radius:8px;border:1px solid #d8d7d0;font-size:13px;font-family:inherit;}
+.form-row textarea{height:60px;padding:8px 10px;}
+.form-section{font-size:11px;font-weight:600;color:#888;grid-column:1/-1;padding-top:10px;border-top:1px solid #e8e7e0;margin-top:6px;}
+.modal-actions{display:flex;gap:8px;margin-top:18px;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:300;}
+.toast.show{opacity:1;}
+.err-box{background:#FCEBEB;border:1px solid #F09595;color:#791F1F;border-radius:10px;padding:14px 18px;margin-bottom:16px;font-size:13px;line-height:1.7;display:none;}
+.err-box.show{display:block;}
+.modal.wide{max-width:900px;}
+.sub-tbl{border:1px solid #e8e7e0;border-radius:8px;overflow:hidden;margin-bottom:8px;}
+.sub-tbl table td{padding:5px 8px;}
+.inline-add{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.inline-add input,.inline-add select{height:32px;padding:0 8px;border:1px solid #d8d7d0;border-radius:6px;font-size:12px;font-family:inherit;background:#fff;}
+tr.cancelled td{color:#aaa;text-decoration:line-through;}
+tr.cancelled td.no-strike{text-decoration:none;}
+tr.past td{color:#999;}
+.chk{display:inline-flex;width:22px;height:22px;border:1px solid #c8c7c0;border-radius:4px;align-items:center;justify-content:center;cursor:pointer;font-weight:700;color:#0C447C;background:#fff;}
+.chk.on{background:#E6F1FB;border-color:#85B7EB;}
+/* 確認表 */
+table.cf{font-size:12.5px;}
+table.cf td{border:1px solid #d8d7d0;padding:5px 8px;}
+table.cf th{border:1px solid #d8d7d0;}
+table.cf td.mgr{font-weight:700;vertical-align:top;width:110px;}
+table.cf td.stamp{width:64px;vertical-align:top;}
+table.cf td.ck{width:40px;text-align:center;}
+.print-title{display:none;}
+@media print{
+  .topbar,.nav,.controls,.note-box,.err-box,.no-print,.toast,.modal-bg{display:none!important;}
+  body{background:#fff;}
+  .main{padding:0;max-width:none;}
+  .tbl-wrap{border:none;overflow:visible;}
+  .print-title{display:block;font-size:14px;font-weight:700;margin-bottom:8px;}
+  table.cf thead th{position:static;background:#fff;color:#000;}
+  table.cf tr{break-inside:avoid;}
+  .chk{border-color:#000;}
+}
+.note-box{background:#fffaf0;border:1px solid #eadfc4;border-radius:10px;padding:12px 16px;font-size:12px;color:#6b5b1f;margin-top:14px;line-height:1.7;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="topbar-title">建設 現場・予定管理</div>
+    <div class="topbar-sub">建設事業本部 工事課 ／ 担当者別・日次予定 と 現場マスタ</div>
+  </div>
+  <span class="phase-chip" title="ログイン機能は次の段階で追加します">第1段階（ログインなし・社内限定）</span>
+</div>
+<div class="nav">
+  <button class="nav-btn active" data-page="schedule">予定入力</button>
+  <button class="nav-btn" data-page="summary">月次集計</button>
+  <button class="nav-btn" data-page="sites">現場マスタ</button>
+  <button class="nav-btn" data-page="vendors">取引先マスタ</button>
+  <button class="nav-btn" data-page="confirm">確認表</button>
+  <button class="nav-btn" data-page="worktypes">作業内容マスタ</button>
+  <button class="nav-btn" data-page="staff">社員（工事課）</button>
+</div>
+
+<div class="main">
+  <div class="err-box" id="err-box"></div>
+
+  <!-- 予定入力 -->
+  <div class="page active" id="page-schedule">
+    <div class="controls">
+      <select id="sc-staff" aria-label="担当者"></select>
+      <button class="btn" id="sc-prev" aria-label="前の月">◀</button>
+      <span class="month-label" id="sc-month"></span>
+      <button class="btn" id="sc-next" aria-label="次の月">▶</button>
+      <span class="spacer"></span>
+      <label style="font-size:12px;display:flex;align-items:center;gap:6px;" title="ふだんは「最近入力した現場」と「担当現場」だけを表示します"><input type="checkbox" id="sc-allsites" style="height:auto;"> すべての現場から選ぶ</label>
+      <button class="btn" id="sc-filloff" title="未入力の土日・祝日を「休み」で埋めます">土日祝を休みで埋める</button>
+      <button class="btn btn-primary" id="sc-save">保存</button>
+    </div>
+    <div class="sched-layout">
+      <div class="tbl-wrap sched-scroll">
+        <table class="sched">
+          <thead><tr>
+            <th>日付</th><th>コマ</th><th>区分</th><th>現場（マスタから選択）</th><th>作業内容</th><th>メモ</th><th>状態</th><th></th>
+          </tr></thead>
+          <tbody id="sc-body"></tbody>
+        </table>
+      </div>
+      <div>
+        <div class="panel">
+          <h3 id="sc-sum-title">現場別・稼働日数</h3>
+          <div id="sc-sum"></div>
+        </div>
+        <div class="panel" style="margin-top:12px;">
+          <div class="hint">
+            ・1日＝午前・午後の2コマ。1コマ＝0.5日で集計します。<br>
+            ・区分が「現場」のときは現場の選択が必須です。<br>
+            ・現場の選択肢は「最近入力した現場（直近2か月）」と「担当現場（現場代理人・担当者として登録されている現場）」です。ほかの現場は「すべての現場から選ぶ」にチェックすると選べます。<br>
+            ・選べるのは進行中で、有効な現場コードがある現場だけです。<br>
+            ・空欄のコマは保存されません（保存済みの内容を空欄にして保存すると削除されます）。<br>
+            ・保存すると同じ日付・コマの内容は上書きされます。<br>
+            ・集計は画面に入力中の内容で計算しています。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 月次集計 -->
+  <div class="page" id="page-summary">
+    <div class="controls">
+      <button class="btn" id="sm-prev" aria-label="前の月">◀</button>
+      <span class="month-label" id="sm-month"></span>
+      <button class="btn" id="sm-next" aria-label="次の月">▶</button>
+      <span class="spacer"></span>
+      <button class="btn" id="sm-csv">CSVダウンロード</button>
+    </div>
+    <div class="tbl-wrap" id="sm-table"></div>
+    <div class="note-box">現場×担当者の稼働日数（保存済みの予定から集計。1コマ＝0.5日）。現場コードが複数ある現場は、現場単位の合計です。</div>
+  </div>
+
+  <!-- 現場マスタ -->
+  <div class="page" id="page-sites">
+    <div class="controls">
+      <input class="grow" id="st-q" type="text" placeholder="現場名・別表記・現場コード・現場代理人・取引先で検索">
+      <select id="st-status">
+        <option value="">すべての状態</option>
+        <option value="進行中" selected>進行中</option>
+        <option value="完了">完了</option>
+        <option value="中止">中止</option>
+      </select>
+      <button class="btn btn-primary" id="st-new">＋ 現場を登録</button>
+    </div>
+    <div class="tbl-wrap" id="st-table"></div>
+    <div class="note-box">現場コードの発番・変更は経理担当者が行う運用です（第1段階では画面上の権限制御はありません）。別表記は、請求書や業務日報での表記ゆれを登録しておくものです。</div>
+  </div>
+
+  <!-- 取引先マスタ -->
+  <div class="page" id="page-vendors">
+    <div class="controls">
+      <input class="grow" id="vd-q" type="text" placeholder="取引先名・別表記で検索">
+      <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="vd-showall" style="height:auto;"> 無効も表示</label>
+      <button class="btn btn-primary" id="vd-new">＋ 取引先を登録</button>
+    </div>
+    <div class="tbl-wrap" id="vd-table"></div>
+    <div class="note-box">取引先と現場の紐付けは、現場マスタの各現場の画面で行います。</div>
+  </div>
+
+  <!-- 確認表 -->
+  <div class="page" id="page-confirm">
+    <div class="controls">
+      <select id="cf-mgr"><option value="">すべての現場代理人</option></select>
+      <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="cf-cancel" style="height:auto;"> 取消も表示</label>
+      <span class="spacer"></span>
+      <button class="btn" id="cf-print">印刷</button>
+    </div>
+    <div class="print-title" id="cf-print-title"></div>
+    <div class="tbl-wrap" id="cf-table"></div>
+    <div class="note-box">現場代理人・取引先 確認表です（進行中の現場、現在の現場代理人のみ）。✓ をクリックすると確認済みにできます（確認者＝その現場代理人、確認日＝今日）。印刷すると押印欄つきの紙として使えます。</div>
+  </div>
+
+  <!-- 作業内容マスタ -->
+  <div class="page" id="page-worktypes">
+    <div class="controls">
+      <label style="font-size:12px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="wt-showall" style="height:auto;"> 無効も表示</label>
+      <span class="spacer"></span>
+      <button class="btn btn-primary" id="wt-new">＋ 作業内容を登録</button>
+    </div>
+    <div class="tbl-wrap" id="wt-table"></div>
+    <div class="note-box">予定入力で「その他（自由入力）」に書かれた内容は、下の一覧に出ます。よく使うものはマスタに登録してください。</div>
+    <div class="tbl-wrap" id="wt-free" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- 社員 -->
+  <div class="page" id="page-staff">
+    <div class="tbl-wrap" id="sf-table"></div>
+    <div class="note-box">nanwa-kanri の社員情報のうち、所属が「建設事業本部 工事課」の社員（と予定入力の対象に追加した社員）を表示しています。社員の追加・変更は nanwa-kanri で行ってください。担当現場は、現場マスタの「現場代理人」「担当者」に登録されている進行中の現場です。</div>
+  </div>
+</div>
+
+<!-- モーダル: 現場 -->
+<div class="modal-bg" id="site-modal">
+  <div class="modal wide">
+    <h2 id="site-modal-title">現場</h2>
+    <div class="form-grid">
+      <div class="form-row full"><label>現場名（正式名称）*</label><input id="sf-name"></div>
+      <div class="form-row full"><label>別表記（「、」区切り）</label><input id="sf-aliases" placeholder="例：金久中前歩道橋R7-2、金久中前歩道橋"></div>
+      <div class="form-row"><label>発注者</label><input id="sf-client"></div>
+      <div class="form-row"><label>状態</label><select id="sf-status"><option>進行中</option><option>完了</option><option>中止</option></select></div>
+      <div class="form-row"><label>工期（開始）</label><input id="sf-start" type="date"></div>
+      <div class="form-row"><label>工期（終了）</label><input id="sf-end" type="date"></div>
+      <div class="form-row full"><label>備考</label><textarea id="sf-notes"></textarea></div>
+      <div class="form-section" id="sf-codes-title">現場コード</div>
+      <div class="form-row full" id="sf-codes-wrap"></div>
+      <div class="form-section">現場代理人（担当期間）</div>
+      <div class="form-row full" id="sf-mgr-wrap"></div>
+      <div class="form-section">担当者（担当期間）</div>
+      <div class="form-row full" id="sf-mem-wrap"></div>
+      <div class="form-section">取引先</div>
+      <div class="form-row full" id="sf-vd-wrap"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="sf-save">保存</button>
+      <button class="btn" data-close="site-modal">閉じる</button>
+      <span class="spacer"></span>
+      <button class="btn btn-danger" id="sf-del">削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- モーダル: 作業内容 -->
+<div class="modal-bg" id="wt-modal">
+  <div class="modal" style="max-width:480px;">
+    <h2 id="wt-modal-title">作業内容</h2>
+    <div class="form-grid">
+      <div class="form-row full"><label>名称 *</label><input id="wf-name"></div>
+      <div class="form-row full"><label>別表記（「、」区切り）</label><input id="wf-aliases"></div>
+      <div class="form-row"><label>表示順</label><input id="wf-sort" type="number" value="100"></div>
+      <div class="form-row"><label>状態</label><select id="wf-active"><option value="true">有効</option><option value="false">無効（選択肢に出さない）</option></select></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="wf-save">保存</button>
+      <button class="btn" data-close="wt-modal">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- モーダル: 取引先 -->
+<div class="modal-bg" id="vd-modal">
+  <div class="modal" style="max-width:520px;">
+    <h2 id="vd-modal-title">取引先</h2>
+    <div class="form-grid">
+      <div class="form-row full"><label>取引先名 *</label><input id="vf-name"></div>
+      <div class="form-row full"><label>別表記（「、」区切り）</label><input id="vf-aliases" placeholder="例：株式会社仙台銘板 鹿児島営業所"></div>
+      <div class="form-row"><label>状態</label><select id="vf-active"><option value="true">有効</option><option value="false">無効</option></select></div>
+      <div class="form-row full"><label>備考</label><textarea id="vf-notes"></textarea></div>
+      <div class="form-section">紐付いている現場</div>
+      <div class="form-row full" id="vf-sites"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="vf-save">保存</button>
+      <button class="btn" data-close="vd-modal">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="vendor-list"></datalist>
+<div class="toast" id="toast"></div>
+
+<script>
+// =====================================================================
+// 設定（nanwa-kanri と同じ Supabase プロジェクト。データは kensetsu スキーマ）
+// =====================================================================
+const SUPABASE_URL = 'https://cicxvcjnvkynhukbnrns.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { db: { schema: 'kensetsu' } });
+
+const PERIODS = ['午前', '午後'];
+const ENTRY_TYPES = ['現場', '本社', '休み', '有給', 'その他'];
+const FREE = '__free__';
+
+// ---- 共通データ ----
+let HONBU = [], STAFF = [], SITES = [], CODES = [], WTYPES = [], VENDORS = [], MANAGERS = [], SVENDORS = [], MEMBERS = [];
+let MEMBERS_OK = true;      // site_members（08_site_members.sql）が未作成なら false（現場の絞り込みをしない）
+let RECENT = [];            // 予定入力中の社員が直近2か月に入力した現場ID（新しい順）
+let HOLIDAYS = {};          // 'YYYY-MM-DD' -> 祝日名
+
+// ---- ユーティリティ ----
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function pad(n){ return String(n).padStart(2, '0'); }
+function ymd(y, m, d){ return `${y}-${pad(m)}-${pad(d)}`; }
+function daysIn(y, m){ return new Date(y, m, 0).getDate(); }
+function dow(y, m, d){ return new Date(y, m - 1, d).getDay(); }
+const DOW = ['日','月','火','水','木','金','土'];
+function isOff(y, m, d){ const w = dow(y, m, d); return w === 0 || w === 6 || !!HOLIDAYS[ymd(y, m, d)]; }
+function splitList(s){ return String(s || '').split(/[、,，\n]/).map(x => x.trim()).filter(Boolean); }
+function fmtDays(v){ return (Math.round(v * 10) / 10).toString(); }
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); }
+function showError(html){ const b = $('err-box'); b.innerHTML = html; b.classList.add('show'); }
+function clearError(){ $('err-box').classList.remove('show'); }
+function dbErrorMessage(err){
+  const m = (err && (err.message || err.details)) || String(err);
+  if (/schema must be one of|Invalid schema/i.test(m))
+    return 'Supabase で kensetsu スキーマが公開されていません。Project Settings → Data API → Exposed schemas に「kensetsu」を追加してください。';
+  if (/does not exist/i.test(m)) return 'テーブルが見つかりません。01_schema.sql を実行済みか確認してください。（' + esc(m) + '）';
+  if (/violates foreign key/i.test(m)) return 'ほかのデータから使われているため、この操作はできません。（' + esc(m) + '）';
+  if (/duplicate key/i.test(m)) return '同じ名前・コードが既に登録されています。';
+  return esc(m);
+}
+function siteLabel(site){
+  if (!site) return '';
+  const codes = CODES.filter(c => c.site_id === site.id && c.status === '有効').map(c => c.code);
+  return codes.length ? `${site.site_name}（${codes.join('・')}）` : site.site_name;
+}
+function siteById(id){ return SITES.find(s => s.id === id); }
+function staffName(id){ const s = HONBU.find(x => x.id === id) || STAFF.find(x => x.id === id); return s ? s.name : '（建設事業本部以外の社員）'; }
+function vendorById(id){ return VENDORS.find(v => v.id === id); }
+function todayStr(){ return ymd(today.getFullYear(), today.getMonth() + 1, today.getDate()); }
+function isCurrentMgr(m){ const t = todayStr(); return (!m.assigned_to || m.assigned_to >= t) && (!m.assigned_from || m.assigned_from <= t); }
+function currentManagers(siteId){ return MANAGERS.filter(m => m.site_id === siteId && isCurrentMgr(m)); }
+function currentMembers(siteId){ return MEMBERS.filter(m => m.site_id === siteId && isCurrentMgr(m)); }
+function activeOn(a, date){ return (!a.assigned_from || a.assigned_from <= date) && (!a.assigned_to || a.assigned_to >= date); }
+// その日に、現場代理人または担当者として担当している現場か
+function isAssigned(siteId, empId, date){
+  return MANAGERS.some(m => m.site_id === siteId && m.employee_id === empId && activeOn(m, date))
+      || MEMBERS.some(m => m.site_id === siteId && m.employee_id === empId && activeOn(m, date));
+}
+function hasValidCode(siteId){ return CODES.some(c => c.site_id === siteId && c.status === '有効'); }
+function selectableSite(s){ return s.status === '進行中' && hasValidCode(s.id); }
+function plain(err){ return dbErrorMessage(err).replace(/<[^>]+>/g, ''); }
+function wtById(id){ return WTYPES.find(w => w.id === id); }
+function openModal(id){ $(id).classList.add('open'); }
+function closeModal(id){ $(id).classList.remove('open'); }
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(b.dataset.close)));
+
+// =====================================================================
+// データ読み込み
+// =====================================================================
+async function loadMasters(){
+  const [st, si, co, wt, vd, mg, sv, hb, mb] = await Promise.all([
+    sb.from('koujika_staff').select('*').order('yomi', { ascending: true, nullsFirst: false }),
+    sb.from('sites').select('*').order('site_name'),
+    sb.from('site_codes').select('*').order('code'),
+    sb.from('work_types').select('*').order('sort_order').order('name'),
+    sb.from('vendors').select('*').order('name'),
+    sb.from('site_managers').select('*').order('assigned_from', { ascending: true, nullsFirst: true }),
+    sb.from('site_vendors').select('*'),
+    sb.from('honbu_staff').select('*').order('yomi', { ascending: true, nullsFirst: false }),
+    sb.from('site_members').select('*').order('assigned_from', { ascending: true, nullsFirst: true }),
+  ]);
+  const err = st.error || si.error || co.error || wt.error || vd.error || mg.error || sv.error;
+  // honbu_staff（04_honbu_staff.sql）が未作成でも動くように、無ければ工事課の社員だけで代用
+  HONBU = hb.error ? (st.data || []) : hb.data;
+  if (err) throw err;
+  STAFF = st.data; SITES = si.data; CODES = co.data; WTYPES = wt.data;
+  VENDORS = vd.data; MANAGERS = mg.data; SVENDORS = sv.data;
+  // site_members が未作成（08 未実行）でも動くように、無ければ絞り込みなし
+  MEMBERS_OK = !mb.error; MEMBERS = mb.error ? [] : mb.data;
+  $('vendor-list').innerHTML = VENDORS.filter(v => v.is_active).map(v => `<option value="${esc(v.name)}">`).join('');
+}
+async function loadHolidays(){
+  try {
+    const r = await fetch('https://holidays-jp.github.io/api/v1/date.json');
+    if (r.ok) HOLIDAYS = await r.json();
+  } catch (e) { /* 取得できなくても土日判定だけで動く */ }
+}
+
+// =====================================================================
+// 予定入力
+// =====================================================================
+const today = new Date();
+let scYear = today.getFullYear(), scMonth = today.getMonth() + 1;
+let scStaff = '';
+let saved = {};   // key -> DBの行
+let drafts = {};  // key -> {entry_type, site_id, work_type_id, work_type_free, note}
+
+function emptyRec(){ return { entry_type: '', site_id: '', work_type_id: '', work_type_free: '', note: '' }; }
+function keyOf(date, period){ return date + '|' + period; }
+function recFromRow(r){
+  return { entry_type: r.entry_type || '', site_id: r.site_id || '', work_type_id: r.work_type_id || (r.work_type_free ? FREE : ''),
+           work_type_free: r.work_type_free || '', note: r.note || '' };
+}
+function isBlank(r){ return !r.entry_type; }
+function sameRec(a, b){
+  return ['entry_type','site_id','work_type_id','work_type_free','note'].every(k => (a[k] || '') === (b[k] || ''));
+}
+function statusOf(key){
+  const d = drafts[key], s = saved[key];
+  if (d.entry_type === '現場' && !d.site_id) return 'need';
+  if (s && sameRec(d, recFromRow(s))) return 'ok';
+  if (!s && isBlank(d)) return 'empty';
+  return 'dirty';
+}
+function hasUnsaved(){ return Object.keys(drafts).some(k => statusOf(k) === 'dirty' || (statusOf(k) === 'need')); }
+
+function confirmLeave(){
+  return !hasUnsaved() || confirm('保存していない変更があります。破棄して移動しますか？');
+}
+
+async function loadSchedule(){
+  $('sc-month').textContent = `${scYear}年${scMonth}月`;
+  $('sc-sum-title').textContent = `現場別・稼働日数（${scMonth}月）`;
+  saved = {}; drafts = {};
+  const n = daysIn(scYear, scMonth);
+  for (let d = 1; d <= n; d++) PERIODS.forEach(p => drafts[keyOf(ymd(scYear, scMonth, d), p)] = emptyRec());
+  if (scStaff) {
+    const { data, error } = await sb.from('staff_schedules').select('*')
+      .eq('employee_id', scStaff)
+      .gte('work_date', ymd(scYear, scMonth, 1)).lte('work_date', ymd(scYear, scMonth, n));
+    if (error) { showError(dbErrorMessage(error)); return; }
+    data.forEach(r => { const k = keyOf(r.work_date, r.period); saved[k] = r; drafts[k] = recFromRow(r); });
+  }
+  await loadRecent();
+  renderSchedule();
+}
+
+// 直近2か月（表示中の月の2か月前の1日〜表示中の月末）に入力した現場を、新しい順に
+async function loadRecent(){
+  RECENT = [];
+  if (!scStaff) return;
+  const fromD = new Date(scYear, scMonth - 3, 1);
+  const { data, error } = await sb.from('staff_schedules').select('site_id,work_date')
+    .eq('employee_id', scStaff).eq('entry_type', '現場')
+    .gte('work_date', ymd(fromD.getFullYear(), fromD.getMonth() + 1, 1))
+    .lte('work_date', ymd(scYear, scMonth, daysIn(scYear, scMonth)))
+    .order('work_date', { ascending: false }).limit(1000);
+  if (error) return;
+  data.forEach(r => { if (r.site_id && !RECENT.includes(r.site_id)) RECENT.push(r.site_id); });
+}
+const RECENT_MAX = 8;
+function siteOptions(current, date){
+  const opt = s => `<option value="${s.id}"${s.id === current ? ' selected' : ''}>${esc(siteLabel(s))}</option>`;
+  const group = (label, list) => list.length ? `<optgroup label="${esc(label)}">${list.map(opt).join('')}</optgroup>` : '';
+  const showAll = $('sc-allsites').checked || !MEMBERS_OK;
+  const used = new Set();
+  const recent = RECENT.map(siteById).filter(s => s && selectableSite(s)).slice(0, RECENT_MAX);
+  recent.forEach(s => used.add(s.id));
+  const mine = SITES.filter(s => !used.has(s.id) && selectableSite(s) && isAssigned(s.id, scStaff, date));
+  mine.forEach(s => used.add(s.id));
+  const others = showAll ? SITES.filter(s => !used.has(s.id) && selectableSite(s)) : [];
+  others.forEach(s => used.add(s.id));
+  const cur = current && !used.has(current) ? siteById(current) : null;
+  let html = '<option value="">（現場を選択）</option>';
+  if (cur) html += group('選択中（担当外・完了・現場コードなし）', [cur]);
+  html += group('最近入力した現場', recent) + group('担当現場', mine) + group('その他の現場', others);
+  if (!recent.length && !mine.length && !showAll)
+    html += '<option value="" disabled>担当現場がありません（「すべての現場から選ぶ」にチェック）</option>';
+  return html;
+}
+function wtOptions(current){
+  const list = WTYPES.filter(w => w.is_active || w.id === current);
+  return '<option value="">（選択）</option>' +
+    list.map(w => `<option value="${w.id}"${w.id === current ? ' selected' : ''}>${esc(w.name)}</option>`).join('') +
+    `<option value="${FREE}"${current === FREE ? ' selected' : ''}>その他（自由入力）</option>`;
+}
+
+function rowHtml(date, period, dayNum){
+  const key = keyOf(date, period);
+  const r = drafts[key];
+  const st = statusOf(key);
+  const off = isOff(scYear, scMonth, dayNum);
+  const isGenba = r.entry_type === '現場';
+  const noWork = !r.entry_type || r.entry_type === '休み' || r.entry_type === '有給';
+  const stLabel = { ok: '保存済', dirty: '変更あり', need: '現場未選択', empty: '—' }[st];
+  let dateCell = '';
+  if (period === '午前') {
+    const hol = HOLIDAYS[date];
+    dateCell = `<td class="date-cell" rowspan="2">${dayNum}日<span class="dow">(${DOW[dow(scYear, scMonth, dayNum)]})</span>${hol ? `<span class="hol">${esc(hol)}</span>` : ''}</td>`;
+  }
+  return `<tr data-key="${key}" class="${period === '午前' ? 'day-start' : ''}${off ? ' off' : ''}${st === 'dirty' || st === 'need' ? ' dirty' : ''}">
+    ${dateCell}
+    <td class="muted">${period}</td>
+    <td><select data-f="entry_type" style="width:84px;">
+      <option value="">（未入力）</option>
+      ${ENTRY_TYPES.map(t => `<option${t === r.entry_type ? ' selected' : ''}>${t}</option>`).join('')}
+    </select></td>
+    <td><select data-f="site_id" style="width:230px;" ${isGenba ? '' : 'disabled'} class="${st === 'need' ? 'need' : ''}">${isGenba ? siteOptions(r.site_id, date) : '<option value=""></option>'}</select></td>
+    <td style="white-space:nowrap;"><select data-f="work_type_id" style="width:150px;" ${noWork ? 'disabled' : ''}>${noWork ? '<option value=""></option>' : wtOptions(r.work_type_id)}</select>
+      ${r.work_type_id === FREE && !noWork ? `<input data-f="work_type_free" style="width:120px;" placeholder="作業内容" value="${esc(r.work_type_free)}">` : ''}</td>
+    <td><input data-f="note" style="width:150px;" value="${esc(r.note)}"></td>
+    <td class="st st-${st}">${stLabel}</td>
+    <td>${period === '午前' ? '<button class="btn btn-sm" data-copy="1" title="午前の内容を午後にコピー">午後へコピー</button>' : ''}</td>
+  </tr>`;
+}
+
+function renderSchedule(){
+  const n = daysIn(scYear, scMonth);
+  let html = '';
+  for (let d = 1; d <= n; d++) {
+    const date = ymd(scYear, scMonth, d);
+    PERIODS.forEach(p => html += rowHtml(date, p, d));
+  }
+  $('sc-body').innerHTML = html;
+  renderScheduleSummary();
+}
+
+function rerenderRow(key){
+  const tr = document.querySelector(`tr[data-key="${key}"]`);
+  const [date, period] = key.split('|');
+  const tmp = document.createElement('tbody');
+  tmp.innerHTML = rowHtml(date, period, Number(date.slice(8)));
+  tr.replaceWith(tmp.firstElementChild);
+  renderScheduleSummary();
+}
+
+// 入力のイベント（表全体で受ける）
+$('sc-body').addEventListener('change', e => {
+  const f = e.target.dataset.f; if (!f) return;
+  // メモ・自由入力は input イベントで反映済み。ここで行を作り直すと、
+  // 入力直後に押したボタン（午後へコピー等）のクリックが消えてしまうため何もしない
+  if (f === 'note' || f === 'work_type_free') return;
+  const key = e.target.closest('tr').dataset.key;
+  const r = drafts[key];
+  r[f] = e.target.value;
+  if (f === 'entry_type') {
+    if (r.entry_type !== '現場') r.site_id = '';
+    if (!r.entry_type || r.entry_type === '休み' || r.entry_type === '有給') { r.work_type_id = ''; r.work_type_free = ''; }
+  }
+  if (f === 'work_type_id' && r.work_type_id !== FREE) r.work_type_free = '';
+  rerenderRow(key);
+  if (f === 'site_id' && r.site_id && MEMBERS_OK && scStaff && !isAssigned(r.site_id, scStaff, key.slice(0, 10))) offerAddMember(r.site_id);
+  if (f === 'work_type_id' && r.work_type_id === FREE) {
+    const inp = document.querySelector(`tr[data-key="${key}"] [data-f="work_type_free"]`); if (inp) inp.focus();
+  }
+});
+// 担当外の現場を選んだとき、担当者に追加するか確認（追加しなくても入力・保存はできる）
+async function offerAddMember(siteId){
+  const s = siteById(siteId);
+  if (!confirm(`「${s.site_name}」は ${staffName(scStaff)}さんの担当現場に登録されていません。\n担当者に追加しますか？（追加すると、次回から「担当現場」に表示されます）`)) return;
+  const { error } = await sb.from('site_members').insert({ site_id: siteId, employee_id: scStaff, notes: '予定入力から追加' });
+  if (error) { alert(plain(error)); return; }
+  await refreshMasters();
+  toast('担当者に追加しました');
+}
+$('sc-allsites').addEventListener('change', () => renderSchedule());
+$('sc-body').addEventListener('input', e => {
+  const f = e.target.dataset.f;
+  if (f !== 'note' && f !== 'work_type_free') return;
+  const tr = e.target.closest('tr'); const key = tr.dataset.key;
+  drafts[key][f] = e.target.value;
+  // 入力中のフォーカスを保つため、状態表示だけ更新
+  const st = statusOf(key);
+  const td = tr.querySelector('td.st');
+  td.className = 'st st-' + st;
+  td.textContent = { ok: '保存済', dirty: '変更あり', need: '現場未選択', empty: '—' }[st];
+  tr.classList.toggle('dirty', st === 'dirty' || st === 'need');
+  renderScheduleSummary();
+});
+$('sc-body').addEventListener('click', e => {
+  if (!e.target.dataset.copy) return;
+  const amKey = e.target.closest('tr').dataset.key;
+  const pmKey = amKey.replace('|午前', '|午後');
+  drafts[pmKey] = { ...drafts[amKey] };
+  rerenderRow(pmKey);
+});
+
+function renderScheduleSummary(){
+  const counts = {}; let work = 0, empty = 0;
+  Object.entries(drafts).forEach(([key, r]) => {
+    if (!r.entry_type) { const d = Number(key.slice(8, 10)); if (!isOff(scYear, scMonth, d)) empty += 0.5; return; }
+    let label;
+    if (r.entry_type === '現場') { const s = siteById(r.site_id); label = s ? s.site_name : '（現場未選択）'; work += 0.5; }
+    else if (r.entry_type === '本社' || r.entry_type === 'その他') { label = r.entry_type; work += 0.5; }
+    else label = r.entry_type;
+    counts[label] = (counts[label] || 0) + 0.5;
+  });
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  $('sc-sum').innerHTML =
+    (rows.length ? rows.map(([k, v]) => `<div class="sum-row"><span>${esc(k)}</span><span class="v">${fmtDays(v)}日</span></div>`).join('')
+                 : '<div class="hint">まだ入力がありません。</div>') +
+    `<div class="sum-total"><span>出勤扱い</span><span>${fmtDays(work)}日</span></div>` +
+    (empty ? `<div class="hint" style="color:#b45309;">平日の未入力：${fmtDays(empty)}日分</div>` : '');
+}
+
+$('sc-filloff').addEventListener('click', () => {
+  let c = 0;
+  Object.keys(drafts).forEach(key => {
+    const d = Number(key.slice(8, 10));
+    if (isOff(scYear, scMonth, d) && isBlank(drafts[key])) { drafts[key] = { ...emptyRec(), entry_type: '休み' }; c++; }
+  });
+  renderSchedule();
+  toast(c ? `${c}コマを「休み」にしました（未保存）` : '埋める対象の空欄はありません');
+});
+
+$('sc-save').addEventListener('click', async () => {
+  if (!scStaff) { alert('担当者を選択してください'); return; }
+  const keys = Object.keys(drafts);
+  const need = keys.filter(k => statusOf(k) === 'need');
+  if (need.length) {
+    alert(`区分が「現場」なのに現場が選ばれていないコマが ${need.length} 件あります（${need.slice(0, 3).map(k => k.slice(5).replace('|', ' ')).join('、')}${need.length > 3 ? ' ほか' : ''}）。\n現場を選ぶか、区分を変えてから保存してください。何も保存していません。`);
+    const tr = document.querySelector(`tr[data-key="${need[0]}"]`); if (tr) tr.scrollIntoView({ block: 'center' });
+    return;
+  }
+  const upserts = [], deletes = [];
+  keys.forEach(k => {
+    if (statusOf(k) !== 'dirty') return;
+    const r = drafts[k], [date, period] = k.split('|');
+    if (isBlank(r)) { if (saved[k]) deletes.push(saved[k].id); return; }
+    upserts.push({
+      employee_id: scStaff, work_date: date, period, entry_type: r.entry_type,
+      site_id: r.entry_type === '現場' ? r.site_id : null,
+      work_type_id: r.work_type_id && r.work_type_id !== FREE ? r.work_type_id : null,
+      work_type_free: r.work_type_id === FREE ? (r.work_type_free.trim() || null) : null,
+      note: r.note.trim() || null,
+    });
+  });
+  if (!upserts.length && !deletes.length) { toast('変更はありません'); return; }
+  const btn = $('sc-save'); btn.disabled = true;
+  try {
+    if (upserts.length) {
+      const { error } = await sb.from('staff_schedules').upsert(upserts, { onConflict: 'employee_id,work_date,period' });
+      if (error) throw error;
+    }
+    if (deletes.length) {
+      const { error } = await sb.from('staff_schedules').delete().in('id', deletes);
+      if (error) throw error;
+    }
+    await loadSchedule();
+    toast(`保存しました（更新 ${upserts.length} コマ${deletes.length ? '・削除 ' + deletes.length + ' コマ' : ''}）`);
+  } catch (err) {
+    alert('保存に失敗しました：' + dbErrorMessage(err).replace(/<[^>]+>/g, ''));
+  } finally { btn.disabled = false; }
+});
+
+function moveMonth(delta){
+  if (!confirmLeave()) return;
+  scMonth += delta;
+  if (scMonth < 1) { scMonth = 12; scYear--; }
+  if (scMonth > 12) { scMonth = 1; scYear++; }
+  loadSchedule();
+}
+$('sc-prev').addEventListener('click', () => moveMonth(-1));
+$('sc-next').addEventListener('click', () => moveMonth(1));
+$('sc-staff').addEventListener('change', e => {
+  if (!confirmLeave()) { e.target.value = scStaff; return; }
+  scStaff = e.target.value; loadSchedule();
+});
+window.addEventListener('beforeunload', e => { if (hasUnsaved()) { e.preventDefault(); e.returnValue = ''; } });
+
+function renderStaffSelect(){
+  const sel = $('sc-staff');
+  sel.innerHTML = STAFF.length
+    ? STAFF.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')
+    : '<option value="">（工事課の社員が見つかりません）</option>';
+  if (!STAFF.find(s => s.id === scStaff)) scStaff = STAFF[0] ? STAFF[0].id : '';
+  sel.value = scStaff;
+}
+
+// =====================================================================
+// 月次集計（現場×担当者）
+// =====================================================================
+let smYear = scYear, smMonth = scMonth, smMatrix = null;
+async function loadSummary(){
+  $('sm-month').textContent = `${smYear}年${smMonth}月`;
+  const n = daysIn(smYear, smMonth);
+  const { data, error } = await sb.from('staff_schedules').select('employee_id,entry_type,site_id')
+    .gte('work_date', ymd(smYear, smMonth, 1)).lte('work_date', ymd(smYear, smMonth, n));
+  if (error) { $('sm-table').innerHTML = `<div class="hint">${dbErrorMessage(error)}</div>`; return; }
+  const rowsMap = {}; // rowLabel -> {empId: days}
+  const order = [];
+  data.forEach(r => {
+    let label;
+    if (r.entry_type === '現場') { const s = siteById(r.site_id); label = s ? siteLabel(s) : '（不明な現場）'; }
+    else label = '［' + r.entry_type + '］';
+    if (!rowsMap[label]) { rowsMap[label] = {}; order.push(label); }
+    rowsMap[label][r.employee_id] = (rowsMap[label][r.employee_id] || 0) + 0.5;
+  });
+  const genba = order.filter(l => !l.startsWith('［')).sort();
+  const other = order.filter(l => l.startsWith('［')).sort();
+  const staffCols = STAFF.filter(s => order.some(l => rowsMap[l][s.id]));
+  smMatrix = { labels: [...genba, ...other], rowsMap, staffCols };
+  if (!data.length) { $('sm-table').innerHTML = '<div class="hint">この月の保存済み予定はありません。</div>'; return; }
+  const th = staffCols.map(s => `<th class="num">${esc(s.name)}</th>`).join('');
+  const body = smMatrix.labels.map(l => {
+    const vals = staffCols.map(s => rowsMap[l][s.id] || 0);
+    const tot = vals.reduce((a, b) => a + b, 0);
+    return `<tr><td>${esc(l)}</td>${vals.map(v => `<td class="num">${v ? fmtDays(v) : '<span class="muted">·</span>'}</td>`).join('')}<td class="num"><b>${fmtDays(tot)}</b></td></tr>`;
+  }).join('');
+  $('sm-table').innerHTML = `<table><thead><tr><th>現場（現場コード）／区分</th>${th}<th class="num">合計</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+$('sm-prev').addEventListener('click', () => { smMonth--; if (smMonth < 1) { smMonth = 12; smYear--; } loadSummary(); });
+$('sm-next').addEventListener('click', () => { smMonth++; if (smMonth > 12) { smMonth = 1; smYear++; } loadSummary(); });
+$('sm-csv').addEventListener('click', () => {
+  if (!smMatrix || !smMatrix.labels.length) { toast('出力するデータがありません'); return; }
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const lines = [[ '現場／区分', ...smMatrix.staffCols.map(s => s.name), '合計' ].map(q).join(',')];
+  smMatrix.labels.forEach(l => {
+    const vals = smMatrix.staffCols.map(s => smMatrix.rowsMap[l][s.id] || 0);
+    lines.push([q(l), ...vals, vals.reduce((a, b) => a + b, 0)].join(','));
+  });
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `現場別稼働日数_${smYear}${pad(smMonth)}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+// =====================================================================
+// 現場マスタ
+// =====================================================================
+function renderSites(){
+  const q = $('st-q').value.trim().toLowerCase();
+  const stf = $('st-status').value;
+  const list = SITES.filter(s => {
+    if (stf && s.status !== stf) return false;
+    if (!q) return true;
+    const codes = CODES.filter(c => c.site_id === s.id).map(c => c.code).join(' ');
+    const mgrs = [...MANAGERS, ...MEMBERS].filter(m => m.site_id === s.id).map(m => staffName(m.employee_id)).join(' ');
+    const vds = SVENDORS.filter(v => v.site_id === s.id).map(v => (vendorById(v.vendor_id) || {}).name || '').join(' ');
+    return [s.site_name, (s.aliases || []).join(' '), codes, s.client_name || '', mgrs, vds].join(' ').toLowerCase().includes(q);
+  });
+  const badge = { '進行中': 'b-green', '完了': 'b-gray', '中止': 'b-red' };
+  $('st-table').innerHTML = `<table><thead><tr><th>現場名</th><th>現場コード</th><th>現場代理人</th><th>担当者</th><th class="num">取引先</th><th>工期</th><th>状態</th><th>別表記</th></tr></thead><tbody>${
+    list.map(s => {
+      const codes = CODES.filter(c => c.site_id === s.id);
+      return `<tr class="clickable" data-id="${s.id}">
+        <td><b>${esc(s.site_name)}</b></td>
+        <td>${codes.length ? codes.map(c => `<span class="badge ${c.status === '有効' ? 'b-blue' : 'b-gray'} mono">${esc(c.code)}</span>`).join(' ') : '<span class="muted">未登録</span>'}</td>
+        <td>${esc(currentManagers(s.id).map(m => staffName(m.employee_id)).join('、')) || '<span class="muted">未設定</span>'}</td>
+        <td>${memberCell(s.id)}</td>
+        <td class="num">${SVENDORS.filter(v => v.site_id === s.id && v.status === '有効').length || '<span class="muted">0</span>'}</td>
+        <td class="muted">${s.start_date || s.end_date ? esc((s.start_date || '') + ' 〜 ' + (s.end_date || '')) : ''}</td>
+        <td><span class="badge ${badge[s.status] || 'b-gray'}">${esc(s.status)}</span></td>
+        <td class="muted" style="white-space:normal;max-width:240px;">${esc((s.aliases || []).join('、'))}</td></tr>`;
+    }).join('') || '<tr><td colspan="8" class="hint">該当する現場はありません。</td></tr>'
+  }</tbody></table><div class="hint">${list.length} 件</div>`;
+}
+function memberCell(siteId){
+  const names = [...new Set(currentMembers(siteId).map(m => staffName(m.employee_id)))];
+  if (!names.length) return '<span class="muted">—</span>';
+  return esc(names.slice(0, 3).join('、')) + (names.length > 3 ? ` <span class="muted">ほか${names.length - 3}名</span>` : '');
+}
+$('st-q').addEventListener('input', renderSites);
+$('st-status').addEventListener('change', renderSites);
+$('st-table').addEventListener('click', e => { const tr = e.target.closest('tr[data-id]'); if (tr) openSiteModal(tr.dataset.id); });
+$('st-new').addEventListener('click', () => openSiteModal(null));
+
+let siteEditId = null;
+function openSiteModal(id){
+  siteEditId = id;
+  const s = id ? siteById(id) : {};
+  $('site-modal-title').textContent = id ? '現場の編集' : '現場の登録';
+  $('sf-name').value = s.site_name || '';
+  $('sf-aliases').value = (s.aliases || []).join('、');
+  $('sf-client').value = s.client_name || '';
+  $('sf-status').value = s.status || '進行中';
+  $('sf-start').value = s.start_date || '';
+  $('sf-end').value = s.end_date || '';
+  $('sf-notes').value = s.notes || '';
+  $('sf-del').style.display = id ? '' : 'none';
+  renderCodesBox(); renderMgrBox(); renderMemBox(); renderVdBox();
+  openModal('site-modal');
+}
+function renderCodesBox(){
+  const wrap = $('sf-codes-wrap');
+  if (!siteEditId) { wrap.innerHTML = '<div class="muted">現場を保存すると、現場コードを追加できます。</div>'; return; }
+  const codes = CODES.filter(c => c.site_id === siteEditId);
+  wrap.innerHTML = (codes.length ? `<table style="margin-bottom:8px;"><thead><tr><th>コード</th><th>区分</th><th>期</th><th>連番</th><th>発行日</th><th>状態</th><th></th></tr></thead><tbody>${
+    codes.map(c => `<tr><td class="mono"><b>${esc(c.code)}</b></td><td>${esc(c.category_digit)}</td><td>${esc(c.fiscal_term)}期</td><td>${esc(c.sequence_no)}</td><td>${esc(c.issued_date || '')}</td>
+      <td><span class="badge ${c.status === '有効' ? 'b-blue' : 'b-gray'}">${esc(c.status)}</span></td>
+      <td><button class="btn btn-sm" data-code-toggle="${c.id}">${c.status === '有効' ? '無効にする' : '有効に戻す'}</button></td></tr>`).join('')
+  }</tbody></table>` : '<div class="muted" style="margin-bottom:8px;">現場コードはまだありません。</div>') +
+  `<div style="display:flex;gap:8px;align-items:center;">
+     <input id="sf-newcode" placeholder="例：148010" style="height:32px;width:120px;padding:0 8px;border:1px solid #d8d7d0;border-radius:6px;font-family:monospace;">
+     <input id="sf-newcode-date" type="date" value="${ymd(today.getFullYear(), today.getMonth() + 1, today.getDate())}" style="height:32px;padding:0 8px;border:1px solid #d8d7d0;border-radius:6px;">
+     <button class="btn btn-sm" id="sf-addcode" style="height:32px;">＋ コード追加</button>
+   </div>
+   <div class="muted" style="margin-top:4px;">構造：1桁目（1または2）＋2〜3桁目（期）＋連番</div>`;
+}
+$('sf-codes-wrap').addEventListener('click', async e => {
+  if (e.target.id === 'sf-addcode') {
+    const code = $('sf-newcode').value.trim();
+    if (!/^[12][0-9]{2}[0-9]+$/.test(code)) { alert('現場コードの形式が正しくありません（1桁目は1か2、全体4桁以上の数字）'); return; }
+    const { error } = await sb.from('site_codes').insert({ site_id: siteEditId, code, issued_date: $('sf-newcode-date').value || null });
+    if (error) { alert(dbErrorMessage(error).replace(/<[^>]+>/g, '')); return; }
+    await refreshMasters(); renderCodesBox(); toast('現場コードを追加しました');
+  }
+  const tid = e.target.dataset.codeToggle;
+  if (tid) {
+    const c = CODES.find(x => x.id === tid);
+    const next = c.status === '有効' ? '無効' : '有効';
+    if (next === '無効' && !confirm(`現場コード ${c.code} を無効にしますか？（予定入力の候補表示から外れます）`)) return;
+    const { error } = await sb.from('site_codes').update({ status: next }).eq('id', tid);
+    if (error) { alert(dbErrorMessage(error).replace(/<[^>]+>/g, '')); return; }
+    await refreshMasters(); renderCodesBox();
+  }
+});
+$('sf-save').addEventListener('click', async () => {
+  const name = $('sf-name').value.trim();
+  if (!name) { alert('現場名を入力してください'); return; }
+  const d = { site_name: name, aliases: splitList($('sf-aliases').value), client_name: $('sf-client').value.trim() || null,
+    status: $('sf-status').value, start_date: $('sf-start').value || null, end_date: $('sf-end').value || null,
+    notes: $('sf-notes').value.trim() || null };
+  const res = siteEditId ? await sb.from('sites').update(d).eq('id', siteEditId).select().single()
+                         : await sb.from('sites').insert(d).select().single();
+  if (res.error) { alert(dbErrorMessage(res.error).replace(/<[^>]+>/g, '')); return; }
+  const wasNew = !siteEditId;
+  siteEditId = res.data.id;
+  await refreshMasters();
+  if (wasNew) { openSiteModal(siteEditId); toast('登録しました。続けて現場コードを追加できます'); }
+  else { closeModal('site-modal'); toast('保存しました'); }
+});
+$('sf-del').addEventListener('click', async () => {
+  const s = siteById(siteEditId);
+  if (!confirm(`「${s.site_name}」を削除しますか？\n予定や現場コードで使われている場合は削除できません（その場合は状態を「完了」「中止」にしてください）。`)) return;
+  const { error } = await sb.from('sites').delete().eq('id', siteEditId);
+  if (error) { alert(dbErrorMessage(error).replace(/<[^>]+>/g, '')); return; }
+  closeModal('site-modal'); await refreshMasters(); toast('削除しました');
+});
+
+
+// ---- 現場代理人（現場の画面内） ----
+function renderMgrBox(){
+  const wrap = $('sf-mgr-wrap');
+  if (!siteEditId) { wrap.innerHTML = '<div class="muted">現場を保存すると、現場代理人を登録できます。</div>'; return; }
+  const list = MANAGERS.filter(m => m.site_id === siteEditId);
+  wrap.innerHTML = (list.length ? `<div class="sub-tbl"><table><thead><tr><th>現場代理人</th><th>担当開始</th><th>担当終了</th><th>備考</th><th></th></tr></thead><tbody>${
+    list.map(m => `<tr class="${isCurrentMgr(m) ? '' : 'past'}" data-mid="${m.id}">
+      <td><b>${esc(staffName(m.employee_id))}</b>${isCurrentMgr(m) ? ' <span class="badge b-green">担当中</span>' : ''}</td>
+      <td><input type="date" data-mf="assigned_from" value="${m.assigned_from || ''}" style="height:28px;border:1px solid #d8d7d0;border-radius:6px;padding:0 6px;"></td>
+      <td><input type="date" data-mf="assigned_to" value="${m.assigned_to || ''}" style="height:28px;border:1px solid #d8d7d0;border-radius:6px;padding:0 6px;"></td>
+      <td><input data-mf="notes" value="${esc(m.notes || '')}" style="height:28px;width:160px;border:1px solid #d8d7d0;border-radius:6px;padding:0 6px;"></td>
+      <td><button class="btn btn-sm btn-danger" data-mdel="${m.id}">削除</button></td></tr>`).join('')
+  }</tbody></table></div>` : '<div class="muted" style="margin-bottom:8px;">現場代理人はまだ登録されていません。</div>') +
+  `<div class="inline-add">
+     <select id="sf-mgr-emp"><option value="">（社員を選択）</option>${HONBU.map(x => `<option value="${x.id}">${esc(x.name)}${x.dept ? '（' + esc(x.dept) + '）' : x.role ? '（' + esc(x.role) + '）' : ''}</option>`).join('')}</select>
+     <input id="sf-mgr-from" type="date" title="担当開始">〜<input id="sf-mgr-to" type="date" title="担当終了（空欄＝現在も担当）">
+     <button class="btn btn-sm" id="sf-mgr-add" style="height:32px;">＋ 現場代理人を追加</button>
+   </div>
+   <div class="muted" style="margin-top:4px;">担当終了が空欄なら「現在も担当」。交代したときは、前任者に担当終了日を入れて後任者を追加します。日付は変更すると自動で保存されます。</div>`;
+}
+$('sf-mgr-wrap').addEventListener('click', async e => {
+  if (e.target.id === 'sf-mgr-add') {
+    const emp = $('sf-mgr-emp').value;
+    if (!emp) { alert('社員を選択してください'); return; }
+    const from = $('sf-mgr-from').value || null, to = $('sf-mgr-to').value || null;
+    if (from && to && from > to) { alert('担当開始が担当終了より後になっています'); return; }
+    const { error } = await sb.from('site_managers').insert({ site_id: siteEditId, employee_id: emp, assigned_from: from, assigned_to: to });
+    if (error) { alert(plain(error)); return; }
+    await refreshMasters(); renderMgrBox(); toast('現場代理人を追加しました');
+  }
+  const del = e.target.dataset.mdel;
+  if (del) {
+    const m = MANAGERS.find(x => x.id === del);
+    if (!confirm(`${staffName(m.employee_id)}さんを、この現場の現場代理人から外しますか？\n（交代の場合は削除せず、担当終了日を入れると履歴が残ります）`)) return;
+    const { error } = await sb.from('site_managers').delete().eq('id', del);
+    if (error) { alert(plain(error)); return; }
+    await refreshMasters(); renderMgrBox(); toast('削除しました');
+  }
+});
+$('sf-mgr-wrap').addEventListener('change', async e => {
+  const f = e.target.dataset.mf; if (!f) return;
+  const id = e.target.closest('tr').dataset.mid;
+  const m = MANAGERS.find(x => x.id === id);
+  const d = { [f]: e.target.value || null };
+  const from = f === 'assigned_from' ? d[f] : m.assigned_from, to = f === 'assigned_to' ? d[f] : m.assigned_to;
+  if (from && to && from > to) { alert('担当開始が担当終了より後になっています'); e.target.value = m[f] || ''; return; }
+  const { error } = await sb.from('site_managers').update(d).eq('id', id);
+  if (error) { alert(plain(error)); return; }
+  await refreshMasters(); renderMgrBox(); toast('保存しました');
+});
+
+// ---- 担当者（現場の画面内）。予定入力の「担当現場」に使う ----
+function renderMemBox(){
+  const wrap = $('sf-mem-wrap');
+  if (!MEMBERS_OK) { wrap.innerHTML = '<div class="muted">担当者の表がまだありません（08_site_members.sql を実行してください）。</div>'; return; }
+  if (!siteEditId) { wrap.innerHTML = '<div class="muted">現場を保存すると、担当者を登録できます。</div>'; return; }
+  const list = MEMBERS.filter(m => m.site_id === siteEditId)
+    .sort((a, b) => (isCurrentMgr(b) - isCurrentMgr(a)) || staffName(a.employee_id).localeCompare(staffName(b.employee_id), 'ja'));
+  const inp = 'style="height:28px;border:1px solid #d8d7d0;border-radius:6px;padding:0 6px;"';
+  wrap.innerHTML = (list.length ? `<div class="sub-tbl"><table><thead><tr><th>担当者</th><th>担当開始</th><th>担当終了</th><th>備考</th><th></th></tr></thead><tbody>${
+    list.map(m => `<tr class="${isCurrentMgr(m) ? '' : 'past'}" data-memid="${m.id}">
+      <td><b>${esc(staffName(m.employee_id))}</b>${isCurrentMgr(m) ? ' <span class="badge b-green">担当中</span>' : ''}</td>
+      <td><input type="date" data-memf="assigned_from" value="${m.assigned_from || ''}" ${inp}></td>
+      <td><input type="date" data-memf="assigned_to" value="${m.assigned_to || ''}" ${inp}></td>
+      <td><input data-memf="notes" value="${esc(m.notes || '')}" style="height:28px;width:180px;border:1px solid #d8d7d0;border-radius:6px;padding:0 6px;"></td>
+      <td><button class="btn btn-sm btn-danger" data-memdel="${m.id}">削除</button></td></tr>`).join('')
+  }</tbody></table></div>` : '<div class="muted" style="margin-bottom:8px;">担当者はまだ登録されていません。</div>') +
+  `<div class="inline-add">
+     <select id="sf-mem-emp"><option value="">（社員を選択）</option>${HONBU.map(x => `<option value="${x.id}">${esc(x.name)}${x.dept ? '（' + esc(x.dept) + '）' : x.role ? '（' + esc(x.role) + '）' : ''}</option>`).join('')}</select>
+     <input id="sf-mem-from" type="date" title="担当開始">〜<input id="sf-mem-to" type="date" title="担当終了（空欄＝現在も担当）">
+     <button class="btn btn-sm" id="sf-mem-add" style="height:32px;">＋ 担当者を追加</button>
+   </div>
+   <div class="muted" style="margin-top:4px;">現場代理人とは別に、この現場に携わる社員（複数可）。予定入力では、担当期間中の現場が「担当現場」として選択肢に出ます。担当終了が空欄なら現在も担当。日付・備考は変更すると自動で保存されます。</div>`;
+}
+$('sf-mem-wrap').addEventListener('click', async e => {
+  if (e.target.id === 'sf-mem-add') {
+    const emp = $('sf-mem-emp').value;
+    if (!emp) { alert('社員を選択してください'); return; }
+    const from = $('sf-mem-from').value || null, to = $('sf-mem-to').value || null;
+    if (from && to && from > to) { alert('担当開始が担当終了より後になっています'); return; }
+    if (MEMBERS.some(m => m.site_id === siteEditId && m.employee_id === emp && isCurrentMgr(m)) &&
+        !confirm(`${staffName(emp)}さんは既に担当中です。別の期間として追加しますか？`)) return;
+    const { error } = await sb.from('site_members').insert({ site_id: siteEditId, employee_id: emp, assigned_from: from, assigned_to: to });
+    if (error) { alert(plain(error)); return; }
+    await refreshMasters(); renderMemBox(); toast('担当者を追加しました');
+  }
+  const del = e.target.dataset.memdel;
+  if (del) {
+    const m = MEMBERS.find(x => x.id === del);
+    if (!confirm(`${staffName(m.employee_id)}さんを、この現場の担当者から外しますか？\n（担当を終えた場合は削除せず、担当終了日を入れると履歴が残ります）`)) return;
+    const { error } = await sb.from('site_members').delete().eq('id', del);
+    if (error) { alert(plain(error)); return; }
+    await refreshMasters(); renderMemBox(); toast('削除しました');
+  }
+});
+$('sf-mem-wrap').addEventListener('change', async e => {
+  const f = e.target.dataset.memf; if (!f) return;
+  const id = e.target.closest('tr').dataset.memid;
+  const m = MEMBERS.find(x => x.id === id);
+  const d = { [f]: e.target.value || null };
+  const from = f === 'assigned_from' ? d[f] : m.assigned_from, to = f === 'assigned_to' ? d[f] : m.assigned_to;
+  if (from && to && from > to) { alert('担当開始が担当終了より後になっています'); e.target.value = m[f] || ''; return; }
+  const { error } = await sb.from('site_members').update(d).eq('id', id);
+  if (error) { alert(plain(error)); return; }
+  await refreshMasters(); renderMemBox(); toast('保存しました');
+});
+
+// ---- 取引先（現場の画面内） ----
+function renderVdBox(){
+  const wrap = $('sf-vd-wrap');
+  if (!siteEditId) { wrap.innerHTML = '<div class="muted">現場を保存すると、取引先を登録できます。</div>'; return; }
+  const list = SVENDORS.filter(v => v.site_id === siteEditId)
+    .sort((a, b) => (a.status === b.status ? 0 : a.status === '有効' ? -1 : 1) || ((vendorById(a.vendor_id) || {}).name || '').localeCompare((vendorById(b.vendor_id) || {}).name || '', 'ja'));
+  wrap.innerHTML = (list.length ? `<div class="sub-tbl"><table><thead><tr><th>取引先</th><th style="width:50px;">確認</th><th>確認者</th><th>確認日</th><th>状態</th><th></th></tr></thead><tbody>${
+    list.map(v => `<tr class="${v.status === '取消' ? 'cancelled' : ''}" data-svid="${v.id}">
+      <td>${esc((vendorById(v.vendor_id) || {}).name || '')}</td>
+      <td class="no-strike"><span class="chk ${v.is_confirmed ? 'on' : ''}" data-svchk="1" title="クリックで確認済み／未確認を切り替え">${v.is_confirmed ? '✓' : ''}</span></td>
+      <td class="muted">${v.confirmed_by ? esc(staffName(v.confirmed_by)) : ''}</td>
+      <td class="muted">${esc(v.confirmed_date || '')}</td>
+      <td class="no-strike">${v.status === '有効' ? '<span class="badge b-green">有効</span>' : '<span class="badge b-gray">取消</span>'}</td>
+      <td class="no-strike" style="white-space:nowrap;"><button class="btn btn-sm" data-svtoggle="1">${v.status === '有効' ? '取消にする' : '有効に戻す'}</button>
+        <button class="btn btn-sm btn-danger" data-svdel="1">削除</button></td></tr>`).join('')
+  }</tbody></table></div><div class="muted" style="margin-bottom:6px;">有効 ${list.filter(v => v.status === '有効').length} 社・確認済み ${list.filter(v => v.status === '有効' && v.is_confirmed).length} 社</div>`
+  : '<div class="muted" style="margin-bottom:8px;">取引先はまだ登録されていません。</div>') +
+  `<div class="inline-add">
+     <input id="sf-vd-name" list="vendor-list" placeholder="取引先名（候補から選択／新しい名前なら取引先マスタにも登録）" style="width:420px;">
+     <button class="btn btn-sm" id="sf-vd-add" style="height:32px;">＋ 取引先を追加</button>
+   </div>`;
+}
+async function toggleConfirm(sv){
+  const on = !sv.is_confirmed;
+  const mgr = currentManagers(sv.site_id)[0];
+  const d = on ? { is_confirmed: true, confirmed_by: mgr ? mgr.employee_id : null, confirmed_date: todayStr() }
+               : { is_confirmed: false, confirmed_by: null, confirmed_date: null };
+  const { error } = await sb.from('site_vendors').update(d).eq('id', sv.id);
+  if (error) { alert(plain(error)); return false; }
+  return true;
+}
+$('sf-vd-wrap').addEventListener('click', async e => {
+  if (e.target.id === 'sf-vd-add') {
+    const name = $('sf-vd-name').value.trim();
+    if (!name) { alert('取引先名を入力してください'); return; }
+    let v = VENDORS.find(x => x.name === name || (x.aliases || []).includes(name));
+    if (!v) {
+      if (!confirm(`「${name}」は取引先マスタにありません。新しく登録して追加しますか？`)) return;
+      const res = await sb.from('vendors').insert({ name }).select().single();
+      if (res.error) { alert(plain(res.error)); return; }
+      v = res.data;
+    }
+    if (SVENDORS.find(x => x.site_id === siteEditId && x.vendor_id === v.id)) { alert('この取引先は既に登録されています'); return; }
+    const { error } = await sb.from('site_vendors').insert({ site_id: siteEditId, vendor_id: v.id });
+    if (error) { alert(plain(error)); return; }
+    await refreshMasters(); renderVdBox(); toast('取引先を追加しました');
+    return;
+  }
+  const tr = e.target.closest('tr[data-svid]'); if (!tr) return;
+  const sv = SVENDORS.find(x => x.id === tr.dataset.svid);
+  if (e.target.dataset.svchk) { if (await toggleConfirm(sv)) { await refreshMasters(); renderVdBox(); } }
+  if (e.target.dataset.svtoggle) {
+    const { error } = await sb.from('site_vendors').update({ status: sv.status === '有効' ? '取消' : '有効' }).eq('id', sv.id);
+    if (error) { alert(plain(error)); return; }
+    await refreshMasters(); renderVdBox();
+  }
+  if (e.target.dataset.svdel) {
+    if (!confirm('この取引先をこの現場から削除しますか？（確認表の取消線のように履歴を残したい場合は「取消にする」を使ってください）')) return;
+    const { error } = await sb.from('site_vendors').delete().eq('id', sv.id);
+    if (error) { alert(plain(error)); return; }
+    await refreshMasters(); renderVdBox(); toast('削除しました');
+  }
+});
+
+// =====================================================================
+// 取引先マスタ
+// =====================================================================
+function renderVendors(){
+  const q = $('vd-q').value.trim().toLowerCase(), all = $('vd-showall').checked;
+  const list = VENDORS.filter(v => (all || v.is_active) && (!q || [v.name, (v.aliases || []).join(' ')].join(' ').toLowerCase().includes(q)));
+  $('vd-table').innerHTML = `<table><thead><tr><th>取引先名</th><th>別表記</th><th class="num">現場数</th><th>主な現場</th><th>状態</th></tr></thead><tbody>${
+    list.map(v => {
+      const links = SVENDORS.filter(x => x.vendor_id === v.id && x.status === '有効');
+      const names = links.map(x => (siteById(x.site_id) || {}).site_name).filter(Boolean);
+      return `<tr class="clickable" data-id="${v.id}"><td><b>${esc(v.name)}</b></td>
+        <td class="muted" style="white-space:normal;max-width:240px;">${esc((v.aliases || []).join('、'))}</td>
+        <td class="num">${links.length}</td>
+        <td class="muted" style="white-space:normal;max-width:420px;">${esc(names.slice(0, 4).join('、'))}${names.length > 4 ? ' ほか' : ''}</td>
+        <td>${v.is_active ? '<span class="badge b-green">有効</span>' : '<span class="badge b-gray">無効</span>'}</td></tr>`;
+    }).join('') || '<tr><td colspan="5" class="hint">該当する取引先はありません。</td></tr>'
+  }</tbody></table><div class="hint">${list.length} 社</div>`;
+}
+$('vd-q').addEventListener('input', renderVendors);
+$('vd-showall').addEventListener('change', renderVendors);
+$('vd-table').addEventListener('click', e => { const tr = e.target.closest('tr[data-id]'); if (tr) openVdModal(tr.dataset.id); });
+$('vd-new').addEventListener('click', () => openVdModal(null));
+let vdEditId = null;
+function openVdModal(id){
+  vdEditId = id;
+  const v = id ? vendorById(id) : {};
+  $('vd-modal-title').textContent = id ? '取引先の編集' : '取引先の登録';
+  $('vf-name').value = v.name || '';
+  $('vf-aliases').value = (v.aliases || []).join('、');
+  $('vf-active').value = String(v.is_active ?? true);
+  $('vf-notes').value = v.notes || '';
+  const links = id ? SVENDORS.filter(x => x.vendor_id === id) : [];
+  $('vf-sites').innerHTML = links.length
+    ? links.map(x => `<div style="font-size:12px;padding:2px 0;">${esc((siteById(x.site_id) || {}).site_name || '')} ${x.status === '取消' ? '<span class="badge b-gray">取消</span>' : ''}${x.is_confirmed ? ' <span class="badge b-blue">確認済</span>' : ''}</div>`).join('')
+    : '<div class="muted">なし</div>';
+  openModal('vd-modal');
+}
+$('vf-save').addEventListener('click', async () => {
+  const name = $('vf-name').value.trim();
+  if (!name) { alert('取引先名を入力してください'); return; }
+  const d = { name, aliases: splitList($('vf-aliases').value), is_active: $('vf-active').value === 'true', notes: $('vf-notes').value.trim() || null };
+  const { error } = vdEditId ? await sb.from('vendors').update(d).eq('id', vdEditId) : await sb.from('vendors').insert(d);
+  if (error) { alert(plain(error)); return; }
+  closeModal('vd-modal'); await refreshMasters(); toast('保存しました');
+});
+
+// =====================================================================
+// 確認表（現場代理人 → 取引先 × 現場）
+// =====================================================================
+function confirmGroups(){
+  const showCancel = $('cf-cancel').checked;
+  const groups = {}; // employee_id or '' -> rows
+  SITES.filter(s => s.status === '進行中').forEach(s => {
+    const mgrs = currentManagers(s.id);
+    const links = SVENDORS.filter(v => v.site_id === s.id && (showCancel || v.status === '有効'));
+    if (!links.length) return;
+    (mgrs.length ? mgrs.map(m => m.employee_id) : ['']).forEach(eid => {
+      (groups[eid] = groups[eid] || []).push(...links.map(l => ({ link: l, site: s })));
+    });
+  });
+  return groups;
+}
+function renderConfirm(){
+  const sel = $('cf-mgr'), cur = sel.value;
+  const groups = confirmGroups();
+  const ids = Object.keys(groups).filter(Boolean).sort((a, b) => {
+    const A = HONBU.find(x => x.id === a) || {}, B = HONBU.find(x => x.id === b) || {};
+    return (A.yomi || A.name || '').localeCompare(B.yomi || B.name || '', 'ja');
+  });
+  if (groups['']) ids.push('');
+  sel.innerHTML = '<option value="">すべての現場代理人</option>' + ids.filter(Boolean).map(id => `<option value="${id}">${esc(staffName(id))}</option>`).join('');
+  sel.value = ids.includes(cur) ? cur : '';
+  const show = sel.value ? [sel.value] : ids;
+  $('cf-print-title').textContent = `現場代理人・取引先 確認表（${todayStr()} 時点）`;
+  if (!show.length) { $('cf-table').innerHTML = '<div class="hint">表示する行がありません。現場マスタで現場代理人と取引先を登録してください。</div>'; return; }
+  let body = '';
+  show.forEach(eid => {
+    const rows = groups[eid].sort((a, b) => a.site.site_name.localeCompare(b.site.site_name, 'ja') ||
+      ((vendorById(a.link.vendor_id) || {}).name || '').localeCompare((vendorById(b.link.vendor_id) || {}).name || '', 'ja'));
+    rows.forEach((r, i) => {
+      const v = vendorById(r.link.vendor_id) || {};
+      body += `<tr class="${r.link.status === '取消' ? 'cancelled' : ''}">
+        ${i === 0 ? `<td class="stamp" rowspan="${rows.length}"></td><td class="mgr" rowspan="${rows.length}">${eid ? esc(staffName(eid)) : '<span class="muted">（未設定）</span>'}</td>` : ''}
+        <td>${esc(v.name || '')}</td><td>${esc(r.site.site_name)}</td>
+        <td class="ck no-strike"><span class="chk ${r.link.is_confirmed ? 'on' : ''}" data-cfchk="${r.link.id}">${r.link.is_confirmed ? '✓' : ''}</span></td></tr>`;
+    });
+  });
+  $('cf-table').innerHTML = `<table class="cf"><thead><tr><th>押印</th><th>現場代理人</th><th>取引先</th><th>現場</th><th>✓</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+$('cf-mgr').addEventListener('change', renderConfirm);
+$('cf-cancel').addEventListener('change', renderConfirm);
+$('cf-print').addEventListener('click', () => window.print());
+$('cf-table').addEventListener('click', async e => {
+  const id = e.target.dataset.cfchk; if (!id) return;
+  const sv = SVENDORS.find(x => x.id === id);
+  if (await toggleConfirm(sv)) { await refreshMasters(); }
+});
+
+// =====================================================================
+// 作業内容マスタ
+// =====================================================================
+async function renderWorkTypes(){
+  const all = $('wt-showall').checked;
+  const list = WTYPES.filter(w => all || w.is_active);
+  $('wt-table').innerHTML = `<table><thead><tr><th class="num" style="width:60px;">順</th><th>名称</th><th>別表記</th><th>状態</th></tr></thead><tbody>${
+    list.map(w => `<tr class="clickable" data-id="${w.id}"><td class="num muted">${w.sort_order}</td><td><b>${esc(w.name)}</b></td>
+      <td class="muted" style="white-space:normal;">${esc((w.aliases || []).join('、'))}</td>
+      <td>${w.is_active ? '<span class="badge b-green">有効</span>' : '<span class="badge b-gray">無効</span>'}</td></tr>`).join('')
+  }</tbody></table>`;
+  const { data, error } = await sb.from('staff_schedules').select('work_type_free').not('work_type_free', 'is', null).limit(2000);
+  if (error) { $('wt-free').innerHTML = ''; return; }
+  const cnt = {}; data.forEach(r => cnt[r.work_type_free] = (cnt[r.work_type_free] || 0) + 1);
+  const rows = Object.entries(cnt).sort((a, b) => b[1] - a[1]);
+  $('wt-free').innerHTML = `<table><thead><tr><th>自由入力された作業内容</th><th class="num">コマ数</th><th></th></tr></thead><tbody>${
+    rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v}</td><td><button class="btn btn-sm" data-promote="${esc(k)}">マスタに登録</button></td></tr>`).join('')
+    || '<tr><td colspan="3" class="hint">自由入力の実績はまだありません。</td></tr>'}</tbody></table>`;
+}
+$('wt-showall').addEventListener('change', renderWorkTypes);
+$('wt-table').addEventListener('click', e => { const tr = e.target.closest('tr[data-id]'); if (tr) openWtModal(tr.dataset.id); });
+$('wt-new').addEventListener('click', () => openWtModal(null));
+$('wt-free').addEventListener('click', e => { const k = e.target.dataset.promote; if (k) { openWtModal(null); $('wf-name').value = k; } });
+let wtEditId = null;
+function openWtModal(id){
+  wtEditId = id;
+  const w = id ? wtById(id) : {};
+  $('wt-modal-title').textContent = id ? '作業内容の編集' : '作業内容の登録';
+  $('wf-name').value = w.name || '';
+  $('wf-aliases').value = (w.aliases || []).join('、');
+  $('wf-sort').value = w.sort_order ?? 100;
+  $('wf-active').value = String(w.is_active ?? true);
+  openModal('wt-modal');
+}
+$('wf-save').addEventListener('click', async () => {
+  const name = $('wf-name').value.trim();
+  if (!name) { alert('名称を入力してください'); return; }
+  const d = { name, aliases: splitList($('wf-aliases').value), sort_order: Number($('wf-sort').value) || 100, is_active: $('wf-active').value === 'true' };
+  const { error } = wtEditId ? await sb.from('work_types').update(d).eq('id', wtEditId) : await sb.from('work_types').insert(d);
+  if (error) { alert(dbErrorMessage(error).replace(/<[^>]+>/g, '')); return; }
+  closeModal('wt-modal'); await refreshMasters(); toast('保存しました');
+});
+
+// =====================================================================
+// 社員（工事課）
+// =====================================================================
+function renderStaff(){
+  const sitesOf = (empId, list, mark) => list.filter(m => m.employee_id === empId && isCurrentMgr(m))
+    .map(m => siteById(m.site_id)).filter(x => x && x.status === '進行中').map(x => esc(x.site_name) + mark);
+  $('sf-table').innerHTML = `<table><thead><tr><th>氏名</th><th>ヨミ</th><th>部署・課</th><th>役職</th><th>担当現場（進行中）</th></tr></thead><tbody>${
+    STAFF.map(s => {
+      const mg = sitesOf(s.id, MANAGERS, '<span class="badge b-amber" style="margin-left:3px;">代理人</span>');
+      const mb = sitesOf(s.id, MEMBERS, '').filter(x => !mg.some(y => y.startsWith(x + '<')));
+      const list = [...new Set([...mg, ...mb])];
+      return `<tr><td><b>${esc(s.name)}</b></td><td class="muted">${esc(s.yomi || '')}</td><td>${esc(s.dept || '')}</td><td>${esc(s.role || '')}</td>
+        <td style="white-space:normal;">${list.length ? list.join('、') : '<span class="muted">—</span>'}</td></tr>`;
+    }).join('')
+    || '<tr><td colspan="5" class="hint">対象の社員がいません。nanwa-kanri の社員情報で、本部が「建設事業本部」、部署・課に「工事課」が含まれているか確認してください。</td></tr>'
+  }</tbody></table><div class="hint">${STAFF.length} 名</div>`;
+}
+
+// =====================================================================
+// 画面切替・起動
+// =====================================================================
+let currentPage = 'schedule';
+function renderPage(page){
+  if (page === 'summary') loadSummary();
+  if (page === 'sites') renderSites();
+  if (page === 'worktypes') renderWorkTypes();
+  if (page === 'vendors') renderVendors();
+  if (page === 'confirm') renderConfirm();
+  if (page === 'staff') renderStaff();
+}
+document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => {
+  const page = b.dataset.page;
+  document.querySelectorAll('.nav-btn').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
+  currentPage = page;
+  renderPage(page);
+}));
+
+async function refreshMasters(){
+  await loadMasters();
+  renderStaffSelect();
+  if (currentPage === 'schedule') renderSchedule(); else renderPage(currentPage);
+}
+
+(async function init(){
+  try {
+    await Promise.all([loadMasters(), loadHolidays()]);
+    clearError();
+  } catch (err) {
+    showError('<b>データベースに接続できませんでした。</b><br>' + dbErrorMessage(err));
+    return;
+  }
+  renderStaffSelect();
+  await loadSchedule();
+})();
+</script>
+</body>
+</html>
