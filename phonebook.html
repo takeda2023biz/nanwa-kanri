@@ -61,7 +61,7 @@ a.phone-num:hover{text-decoration:underline}
   <button class="tab" data-kind="Wi-Fi" onclick="setTab('Wi-Fi')">Wi-Fiルーター<span class="n" id="n-Wi-Fi"></span></button>
 </div>
 <div class="toolbar">
-  <input type="text" id="search" placeholder="氏名・電話番号・管理No・事業本部で検索..." oninput="render()">
+  <input type="text" id="search" placeholder="氏名・電話番号・機種名・管理No・事業本部で検索..." oninput="render()">
   <select id="f-honbu" onchange="render()"><option value="">全事業本部</option></select>
   <button class="export-btn" onclick="exportCSV()">CSVエクスポート</button>
 </div>
@@ -81,6 +81,13 @@ const HB_CLS = {
   '建設事業本部':'b-kensetsu',
   '建設資材事業本部':'b-zairyo'
 };
+
+// タブごとの表示列（順番どおりに表示）
+const COLS = {
+  '携帯':  ['honbu','assignee','phone','category','model','contract_no'],
+  'Wi-Fi': ['honbu','assignee','model','contract_no']
+};
+const CAT_CLS = {'iPhone':'b-iphone','Android':'b-android','iPad':'b-ipad'};
 
 let DATA = [];
 let TAB = '携帯';
@@ -149,6 +156,8 @@ function filteredData(){
       (d.yomi||'').includes(q) ||
       (d.honbu||'').includes(q) ||
       (d.contract_no||'').toLowerCase().includes(q.toLowerCase()) ||
+      (d.model||'').toLowerCase().includes(q.toLowerCase()) ||
+      (d.category||'').toLowerCase().includes(q.toLowerCase()) ||
       (qd.length >= 3 && digits(d.phone).includes(qd));
     const mh = !hb || d.honbu === hb;
     return mq && mh;
@@ -172,33 +181,33 @@ function render(){
       '<div class="empty">該当するデータが見つかりません</div>';
     return;
   }
-  const numLabel = TAB === 'Wi-Fi' ? '番号' : '携帯番号';
+  const NA = '<span style="color:#ccc">—</span>';
+  const C = {
+    honbu:   {label:'事業本部', w:170, html:d=>`<span class="badge ${HB_CLS[d.honbu]||'b-gray'}">${esc(d.honbu)||'—'}</span>`},
+    assignee:{label:'氏名',     w:140, html:d=>d.assignee?`<b>${esc(d.assignee)}</b>`:'<span style="color:#ccc">未割当</span>'},
+    phone:   {label:'電話番号', w:150, html:d=>d.phone?`<a class="phone-num" href="tel:${digits(d.phone)}">${esc(d.phone)}</a>`:NA},
+    category:{label:'カテゴリ', w:100, html:d=>d.category?`<span class="badge ${CAT_CLS[d.category]||'b-gray'}">${esc(d.category)}</span>`:NA},
+    model:   {label:'機種名',   w:0,   html:d=>esc(d.model)||NA},
+    contract_no:{label:'管理No', w:110, html:d=>`<span class="mono">${esc(d.contract_no)||'—'}</span>`}
+  };
+  const cols = COLS[TAB];
   document.getElementById('tbl-wrap').innerHTML = `
     <table>
-      <thead>
-        <tr>
-          <th style="width:170px" onclick="sortBy('honbu')">事業本部${sortIcon('honbu')}</th>
-          <th style="width:140px" onclick="sortBy('assignee')">氏名${sortIcon('assignee')}</th>
-          <th onclick="sortBy('phone')">${numLabel}${sortIcon('phone')}</th>
-          <th style="width:120px" onclick="sortBy('contract_no')">管理No${sortIcon('contract_no')}</th>
-        </tr>
-      </thead>
+      <thead><tr>
+        ${cols.map(k=>`<th${C[k].w?` style="width:${C[k].w}px"`:''} onclick="sortBy('${k}')">${C[k].label}${sortIcon(k)}</th>`).join('')}
+      </tr></thead>
       <tbody>
-        ${filtered.map(d=>`
-          <tr>
-            <td><span class="badge ${HB_CLS[d.honbu]||'b-gray'}">${esc(d.honbu)||'—'}</span></td>
-            <td style="font-weight:600">${d.assignee?esc(d.assignee):'<span style="color:#ccc">未割当</span>'}</td>
-            <td>${d.phone?`<a class="phone-num" href="tel:${digits(d.phone)}">${esc(d.phone)}</a>`:'<span style="color:#ccc">—</span>'}</td>
-            <td><span class="mono">${esc(d.contract_no)||'—'}</span></td>
-          </tr>`).join('')}
+        ${filtered.map(d=>`<tr>${cols.map(k=>`<td>${C[k].html(d)}</td>`).join('')}</tr>`).join('')}
       </tbody>
     </table>
   `;
 }
 
 function exportCSV(){
-  const rows = [['事業本部','氏名', TAB==='Wi-Fi'?'番号':'携帯番号','管理No']];
-  filteredData().forEach(d=>rows.push([d.honbu,d.assignee,d.phone,d.contract_no]));
+  const L = {honbu:'事業本部',assignee:'氏名',phone:'電話番号',category:'カテゴリ',model:'機種名',contract_no:'管理No'};
+  const cols = COLS[TAB];
+  const rows = [cols.map(k=>L[k])];
+  filteredData().forEach(d=>rows.push(cols.map(k=>d[k])));
   const csv = rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const bom = '﻿';
   const blob = new Blob([bom+csv],{type:'text/csv;charset=utf-8'});
