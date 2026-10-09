@@ -64,6 +64,10 @@ button,input,select,textarea{font:inherit;color:inherit}
   --dc:#999;background:color-mix(in srgb,var(--dc) 12%,#fff);border:1.5px solid color-mix(in srgb,var(--dc) 60%,#fff)}
 .seat .nm{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .seat .ext{font-family:var(--mono);font-size:12px;color:#666}
+.seat.r90{width:56px;height:104px;padding:8px 4px;align-items:center;justify-content:center;gap:4px;text-align:center}
+.seat.r90 .nm{white-space:normal;word-break:break-all;line-height:1.25;font-size:13px;overflow:visible}
+.seat.r90 .ext{font-size:11px;white-space:normal;line-height:1.3}
+.seat.r90 .att{right:4px;top:4px}
 .seat.empty{background:transparent;border-style:dashed;border-color:#ccc}
 .seat.empty .nm{font-weight:400;color:#999;font-size:12px}
 .seat:hover{box-shadow:0 2px 8px rgb(0 0 0 / .15)}
@@ -90,7 +94,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .sheet h2{font-size:22px}
 .kana{font-size:12px;color:var(--muted)}
 .chip{display:inline-flex;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;margin-top:6px;background:var(--dc,#999);color:#fff}
-.chip.light{color:#1a1a1a}
+.chip.light{color:#5a3d00}
 .dept{font-size:12px;color:#555;margin-left:6px}
 .rows{display:flex;flex-direction:column;border-top:1px solid var(--line)}
 .row{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
@@ -214,8 +218,7 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 const FLOORS=["2F","3F","4F"], W=1200, H=720, SW=104, SH=56, GRID=8;
 // 事業本部の色（電話番号帳のバッジと同じ）
-// 色は内線番号一覧表（2026.02.02版）に合わせる
-const HB_COLOR={'管理本部':'#005ba2','エネルギー事業本部':'#fac800','環境衛生事業本部':'#00aee9','衛生管理部':'#ff455a','建設事業本部':'#6faf57','建設資材事業本部':'#008546','県営住宅管理室':'#d86dcd'};
+const HB_COLOR={'管理本部':'#1a2d5a','エネルギー事業本部':'#d4a900','環境衛生事業本部':'#1a6fc4','衛生管理部':'#d94040','建設事業本部':'#2e7d32','建設資材事業本部':'#0097a7'};
 const S={seats:[],areas:[],phones:[],people:[],loaded:false,floor:"2F",edit:false,canEdit:false,sheet:null,hl:null,hlPhone:null,view:"plan",att:{},attAsOf:null};
 let scale=1,drag=null,pendingRender=false,suppressClick=false;
 const $=s=>document.querySelector(s);
@@ -227,7 +230,7 @@ try{const f=localStorage.getItem("seat-floor");if(FLOORS.includes(f))S.floor=f;}
 /* ---------- data ---------- */
 async function loadAll(){
   const [s,a,p,ph,att]=await Promise.all([
-    sb.from('seats').select('id,floor,x,y,phone_id'),
+    sb.from('seats').select('id,floor,x,y,phone_id,rot'),
     sb.from('seat_areas').select('id,floor,x,y,w,h,label'),
     sb.rpc('seat_directory'),
     sb.from('seat_phones').select('id,floor,ext,label,on_map,x,y'),
@@ -256,6 +259,8 @@ function derive(){
   for(const st of S.seats)if(st.phone_id&&phoneById[st.phone_id])(seatsByPhone[st.phone_id]||=[]).push(st);
   return{seatById,bySeat,seatNo,phoneById,seatsByPhone};
 }
+const seatW=st=>st&&st.rot===90?SH:SW, seatH=st=>st&&st.rot===90?SW:SH;
+const seatCenter=st=>({x:st.x+seatW(st)/2,y:st.y+seatH(st)/2});
 const extNum=v=>parseInt(String(v||"").replace(/\D/g,""))||99999;
 // 席の内線：席にひも付いた電話機 → なければ社員管理の内線
 function seatExt(st,p,D){
@@ -311,10 +316,10 @@ function renderPlan(){
   const selPhone=S.sheet&&S.sheet.mode==="phone"?S.sheet.id:null;
   for(const s of seats){const p=D.bySeat[s.id],E=seatExt(s,p,D),A=attOf(p);
     const extText=E.shared?`☎ ${E.ext} 共用`:(E.ext?"内線 "+E.ext:(p?"内線 —":""));
-    plan.append(h("button",{type:"button",class:"seat"+(p?"":" empty")+(S.hl===s.id?" hl":"")+(selected("seat",s.id)?" sel":"")+(selPhone&&s.phone_id===selPhone?" ph-hl":"")+(S.hlPhone&&s.phone_id===S.hlPhone?" ph-pulse":"")+(A&&A.state!=="in"?" absent":""),"data-id":s.id,
-      style:`left:${s.x}px;top:${s.y}px;${p?hbStyle(p.honbu):""}`,"aria-label":p?`${p.name} 内線 ${E.ext||"なし"}${E.shared?"（共用）":""}`:`空席 ${s.floor} 席${D.seatNo[s.id]}`,title:A?A.label+(A.note?"　"+A.note:""):null},
+    plan.append(h("button",{type:"button",class:"seat"+(p?"":" empty")+(S.hl===s.id?" hl":"")+(selected("seat",s.id)?" sel":"")+(selPhone&&s.phone_id===selPhone?" ph-hl":"")+(S.hlPhone&&s.phone_id===S.hlPhone?" ph-pulse":"")+(A&&A.state!=="in"?" absent":"")+(s.rot===90?" r90":""),"data-id":s.id,
+      style:`left:${s.x}px;top:${s.y}px;${s.rot&&s.rot!==90?`transform:rotate(${s.rot}deg);`:""}${p?hbStyle(p.honbu):""}`,"aria-label":p?`${p.name} 内線 ${E.ext||"なし"}${E.shared?"（共用）":""}`:`空席 ${s.floor} 席${D.seatNo[s.id]}`,title:A?A.label+(A.note?"　"+A.note:""):null},
       A?h("span",{class:"att "+A.state+(A.note?" memo":""),"aria-hidden":"true"}):null,
-      h("span",{class:"nm",text:p?p.name:"空席"}),extText?h("span",{class:"ext"+(E.shared?" shared":""),text:extText}):null));}
+      (s.rot===90&&p&&/[\s　]/.test(p.name))?h("span",{class:"nm"},...p.name.split(/[\s　]+/).flatMap((t,i)=>i?[h("br"),t]:[t])):h("span",{class:"nm",text:p?p.name:"空席"}),extText?h("span",{class:"ext"+(E.shared?" shared":""),text:extText}):null));}
   for(const ph of S.phones.filter(x=>x.floor===S.floor&&x.on_map&&x.x!=null)){
     const n=(D.seatsByPhone[ph.id]||[]).length;if(!S.edit&&n===1)continue;
     plan.append(h("button",{type:"button",class:"phone"+(n===0?" rep":"")+(n===1?" solo":"")+(selected("phone",ph.id)?" sel":""),"data-id":ph.id,
@@ -361,7 +366,7 @@ plan.addEventListener("pointerdown",e=>{
   const kind=t.classList.contains("seat")?"seats":t.classList.contains("phone")?"seat_phones":"seat_areas";
   const item=(kind==="seats"?S.seats:kind==="seat_phones"?S.phones:S.areas).find(x=>x.id===t.dataset.id);if(!item)return;
   const pt=kind==="seat_phones";
-  drag={el:t,kind,item,rz:!!e.target.closest(".rz"),sx:e.clientX,sy:e.clientY,ox:item.x,oy:item.y,ow:pt?-8:(item.w||SW),oh:pt?-8:(item.h||SH),moved:false};
+  drag={el:t,kind,item,rz:!!e.target.closest(".rz"),sx:e.clientX,sy:e.clientY,ox:item.x,oy:item.y,ow:pt?-8:(kind==='seats'?seatW(item):item.w),oh:pt?-8:(kind==='seats'?seatH(item):item.h),moved:false};
   t.setPointerCapture(e.pointerId);e.preventDefault();
 });
 plan.addEventListener("pointermove",e=>{
@@ -429,6 +434,7 @@ function sheetSeat(id){
     for(const[g,ps]of Object.entries(groups))sel.append(h("optgroup",{label:g},ps.map(p=>{const ps2=seatOf(p,D);
       return h("option",{value:p.id,selected:cur&&cur.id===p.id},`${p.name}${p.dept?"（"+p.dept+"）":""} — ${ps2?(ps2.id===id?"この席":`${ps2.floor} 席${D.seatNo[ps2.id]}`):"未配置"}`);})));};
   filter.addEventListener("input",fill);fill();
+  const rotSel=h("select",{id:"se-rot"},[[0,"横"],[90,"縦"],[45,"斜め（右下がり）"],[-45,"斜め（右上がり）"]].map(([v,t])=>h("option",{value:v,selected:(s.rot||0)===v},t)));
   const phSel=h("select",{id:"se-phone"},h("option",{value:""},"（電話なし）"),
     S.phones.filter(x=>x.floor===s.floor).sort((a,b)=>extNum(a.ext)-extNum(b.ext)).map(ph=>{const us=phoneUsers(ph,D).filter(u=>!cur||u.id!==cur.id);
       return h("option",{value:ph.id,selected:s.phone_id===ph.id},`☎ ${ph.ext||"—"}　${ph.label||""}${us.length?(ph.label?"（":"")+us.map(u=>shortName(u.name)).join("・")+(ph.label?"）":"と共用"):""}`);}));
@@ -440,13 +446,15 @@ function sheetSeat(id){
     h("div",{class:"field"},h("label",{for:"se-person",class:"sr"},"社員を選択"),sel),
     h("p",{class:"hint",text:"ほかの席にいる人を選ぶと、その人がこの席へ移動します。いまこの席にいる人は未配置になります。"}),
     h("div",{class:"field"},h("label",{for:"se-phone",class:"lbl"},"使う電話機（内線）"),phSel),
+    h("div",{class:"field"},h("label",{for:"se-rot",class:"lbl"},"席の向き"),rotSel),
     h("div",{class:"actions"},h("button",{type:"button",class:"btn primary",onclick:async()=>{
-      const pid=sel.value,phid=phSel.value||null,pChanged=(cur?cur.id:"")!==pid,phChanged=(s.phone_id||null)!==phid;
-      if(!pChanged&&!phChanged){closeSheet();return;}
+      const pid=sel.value,phid=phSel.value||null,rot=parseInt(rotSel.value)||0,pChanged=(cur?cur.id:"")!==pid,phChanged=(s.phone_id||null)!==phid,rChanged=(s.rot||0)!==rot;
+      if(!pChanged&&!phChanged&&!rChanged){closeSheet();return;}
       closeSheet();
       await write(async()=>{
         if(pChanged){const r=await sb.rpc('seat_assign',{p_seat_id:id,p_employee_id:pid||null});if(r.error)return r;}
-        if(phChanged)return await sb.from('seats').update({phone_id:phid,updated_at:new Date().toISOString()}).eq('id',id);
+        if(phChanged||rChanged){const u={updated_at:new Date().toISOString()};if(phChanged)u.phone_id=phid;if(rChanged)u.rot=rot;
+          return await sb.from('seats').update(u).eq('id',id);}
         return{error:null};
       },"席を更新しました");}},"保存"),del)];
 }
@@ -477,8 +485,8 @@ function sheetPhoneEdit(id){
     const was=seats.filter(st=>st.phone_id===id).map(st=>st.id);
     const upd={ext:ext.value.trim(),label:label.value.trim(),on_map:onmap.checked,updated_at:new Date().toISOString()};
     if(auto.checked&&checked.length){const ss=checked.map(i=>D.seatById[i]);
-      if(ss.length===1){upd.x=ss[0].x+SW-10;upd.y=ss[0].y+10;}
-      else{upd.x=Math.round(ss.reduce((a,b)=>a+b.x+SW/2,0)/ss.length);upd.y=Math.round(ss.reduce((a,b)=>a+b.y+SH/2,0)/ss.length);}}
+      if(ss.length===1){upd.x=ss[0].x+seatW(ss[0])-10;upd.y=ss[0].y+10;}
+      else{upd.x=Math.round(ss.reduce((a,b)=>a+seatCenter(b).x,0)/ss.length);upd.y=Math.round(ss.reduce((a,b)=>a+seatCenter(b).y,0)/ss.length);}}
     const off=was.filter(i=>!checked.includes(i)),on=checked.filter(i=>!was.includes(i));
     closeSheet();
     await write(async()=>{
@@ -567,7 +575,7 @@ function freeSpot(w,hgt,list){
   for(let y=24;y+hgt<H-8;y+=64)for(let x=24;x+w<W-8;x+=112){if(!list.some(r=>x<r.x+r.w+4&&x+w+4>r.x&&y<r.y+r.h+4&&y+hgt+4>r.y))return{x:snap(x),y:snap(y)};}
   return{x:24,y:24};
 }
-$("#addSeat").addEventListener("click",async()=>{const p=freeSpot(SW,SH,[...S.seats.filter(s=>s.floor===S.floor).map(s=>({x:s.x,y:s.y,w:SW,h:SH})),...S.areas.filter(a=>a.floor===S.floor)]);
+$("#addSeat").addEventListener("click",async()=>{const p=freeSpot(SW,SH,[...S.seats.filter(s=>s.floor===S.floor).map(s=>({x:s.x,y:s.y,w:seatW(s),h:seatH(s)})),...S.areas.filter(a=>a.floor===S.floor)]);
   await write(sb.from('seats').insert({floor:S.floor,x:p.x,y:p.y}),"席を追加しました。ドラッグで好きな位置へ動かせます");});
 $("#addPhone").addEventListener("click",async()=>{
   const{data,error}=await sb.from('seat_phones').insert({floor:S.floor,ext:"",label:"",on_map:true}).select('id').single();
