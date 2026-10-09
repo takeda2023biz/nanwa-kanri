@@ -90,7 +90,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .sheet h2{font-size:22px}
 .kana{font-size:12px;color:var(--muted)}
 .chip{display:inline-flex;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;margin-top:6px;background:var(--dc,#999);color:#fff}
-.chip.light{color:#5a3d00}
+.chip.light{color:#1a1a1a}
 .dept{font-size:12px;color:#555;margin-left:6px}
 .rows{display:flex;flex-direction:column;border-top:1px solid var(--line)}
 .row{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
@@ -214,7 +214,8 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 const FLOORS=["2F","3F","4F"], W=1200, H=720, SW=104, SH=56, GRID=8;
 // 事業本部の色（電話番号帳のバッジと同じ）
-const HB_COLOR={'管理本部':'#1a2d5a','エネルギー事業本部':'#d4a900','環境衛生事業本部':'#1a6fc4','衛生管理部':'#d94040','建設事業本部':'#2e7d32','建設資材事業本部':'#0097a7'};
+// 色は内線番号一覧表（2026.02.02版）に合わせる
+const HB_COLOR={'管理本部':'#005ba2','エネルギー事業本部':'#fac800','環境衛生事業本部':'#00aee9','衛生管理部':'#ff455a','建設事業本部':'#6faf57','建設資材事業本部':'#008546','県営住宅管理室':'#d86dcd'};
 const S={seats:[],areas:[],phones:[],people:[],loaded:false,floor:"2F",edit:false,canEdit:false,sheet:null,hl:null,hlPhone:null,view:"plan",att:{},attAsOf:null};
 let scale=1,drag=null,pendingRender=false,suppressClick=false;
 const $=s=>document.querySelector(s);
