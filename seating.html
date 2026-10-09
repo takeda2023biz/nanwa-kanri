@@ -116,6 +116,17 @@ button,input,select,textarea{font:inherit;color:inherit}
 .phone.sel{outline:3px solid var(--accent);outline-offset:1px}
 .editing .phone{cursor:grab;touch-action:none}
 .seat.ph-hl{box-shadow:0 0 0 3px var(--hl)}
+.att{position:absolute;right:6px;top:6px;width:9px;height:9px;border-radius:50%;background:#c9c9c4}
+.att.in{background:#22a35a;box-shadow:0 0 0 2px #fff}
+.att.out{background:#fff;border:2px solid #9a9a94}
+.att.memo::after{content:"";position:absolute;right:-4px;top:-4px;width:5px;height:5px;border-radius:50%;background:var(--hl)}
+.seat.absent .nm{color:#7d7d78}
+.legend .lg{display:inline-flex;align-items:center;gap:5px}
+.legend .lg .att{position:static}
+.legend .stale{color:var(--hl)}
+.imp-sum{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px;border-top:1px solid var(--line);padding-top:10px}
+.imp-sum b{font-family:var(--mono);text-align:right}
+.imp-list{font-size:12px;color:#555;line-height:1.7}
 .seat.ph-pulse{animation:pulse 1.2s ease-in-out 2}
 .seat .ext.shared{color:var(--wall);font-weight:700}
 .note{display:block;font-size:12px;color:var(--muted);margin-top:2px;user-select:text}
@@ -175,6 +186,8 @@ button,input,select,textarea{font:inherit;color:inherit}
       <ul id="results" hidden></ul>
     </div>
     <button id="viewBtn" class="btn" type="button" aria-pressed="false">内線一覧</button>
+    <button id="importBtn" class="btn" type="button" hidden>在席を取り込む</button>
+    <input id="csvFile" type="file" accept=".csv,text/csv" hidden>
     <button id="editBtn" class="btn" type="button" aria-pressed="false" hidden>編集モード</button>
   </div>
   <div class="toolbar" id="toolbar" hidden>
@@ -202,7 +215,7 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const FLOORS=["2F","3F","4F"], W=1200, H=720, SW=104, SH=56, GRID=8;
 // 事業本部の色（電話番号帳のバッジと同じ）
 const HB_COLOR={'管理本部':'#1a2d5a','エネルギー事業本部':'#d4a900','環境衛生事業本部':'#1a6fc4','衛生管理部':'#d94040','建設事業本部':'#2e7d32','建設資材事業本部':'#0097a7'};
-const S={seats:[],areas:[],phones:[],people:[],loaded:false,floor:"2F",edit:false,canEdit:false,sheet:null,hl:null,hlPhone:null,view:"plan"};
+const S={seats:[],areas:[],phones:[],people:[],loaded:false,floor:"2F",edit:false,canEdit:false,sheet:null,hl:null,hlPhone:null,view:"plan",att:{},attAsOf:null};
 let scale=1,drag=null,pendingRender=false,suppressClick=false;
 const $=s=>document.querySelector(s);
 function h(tag,props,...kids){const el=document.createElement(tag);for(const[k,v]of Object.entries(props||{})){if(v==null||v===false)continue;if(k==="class")el.className=v;else if(k==="style")el.style.cssText=v;else if(k==="text")el.textContent=v;else if(k.startsWith("on"))el.addEventListener(k.slice(2),v);else el.setAttribute(k,v===true?"":v);}for(const c of kids.flat(3)){if(c==null||c===false)continue;el.append(c.nodeType?c:String(c));}return el;}
@@ -212,15 +225,18 @@ try{const f=localStorage.getItem("seat-floor");if(FLOORS.includes(f))S.floor=f;}
 
 /* ---------- data ---------- */
 async function loadAll(){
-  const [s,a,p,ph]=await Promise.all([
+  const [s,a,p,ph,att]=await Promise.all([
     sb.from('seats').select('id,floor,x,y,phone_id'),
     sb.from('seat_areas').select('id,floor,x,y,w,h,label'),
     sb.rpc('seat_directory'),
-    sb.from('seat_phones').select('id,floor,ext,label,on_map,x,y')
+    sb.from('seat_phones').select('id,floor,ext,label,on_map,x,y'),
+    sb.from('seat_attendance').select('employee_id,status,punch,note,as_of')
   ]);
   const err=s.error||a.error||p.error||ph.error;
   if(err){console.error(err);toast("データの読み込みに失敗しました。再読み込みしてください");return false;}
   S.seats=s.data||[];S.areas=a.data||[];S.phones=ph.data||[];S.people=(p.data||[]).map(x=>({...x,id:String(x.id)}));S.loaded=true;
+  S.att={};S.attAsOf=null;
+  if(!att.error){for(const r of att.data||[]){S.att[r.employee_id]=r;if(!S.attAsOf||r.as_of>S.attAsOf)S.attAsOf=r.as_of;}}
   render();return true;
 }
 async function write(promise,okMsg){
@@ -249,6 +265,23 @@ function seatExt(st,p,D){
 const personExt=(p,D)=>seatExt(seatOf(p,D),p,D);
 const phoneUsers=(ph,D)=>(D.seatsByPhone[ph.id]||[]).map(st=>D.bySeat[st.id]).filter(Boolean);
 const shortName=n=>String(n||"").split(/[\s　]/)[0];
+/* ---------- 在席 ---------- */
+const VARIANT={"﨑":"崎","邊":"辺","邉":"辺","濵":"浜","濱":"浜","髙":"高","德":"徳","嶋":"島","澤":"沢","廣":"広","齋":"斉","齊":"斉","斎":"斉","冨":"富","國":"国","藏":"蔵","禮":"礼","縣":"県","惠":"恵","眞":"真"};
+const nameKey=n=>String(n||"").replace(/[\s　]/g,"").replace(/./g,c=>VARIANT[c]||c);
+const sameDay=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+const attToday=()=>!!S.attAsOf&&sameDay(new Date(S.attAsOf),new Date());
+function parsePunch(t){const m=String(t||"").match(/\[([^\]\d]+)\d*\]\s*(\d{1,2}:\d{2})/);return m?{kind:m[1],time:m[2]}:null;}
+// 在席状態：null=本日の取り込みなし / {state:"in"|"out"|"off", label, note}
+function attOf(p){
+  if(!p||!attToday())return null;
+  const r=S.att[p.id];
+  if(!r)return{state:"off",label:"不在（本日の打刻なし）",note:""};
+  const pu=parsePunch(r.punch);
+  if(r.status==="在席")return{state:"in",label:"在席"+(pu?`（${pu.kind} ${pu.time}）`:""),note:r.note};
+  if(pu&&/退勤/.test(pu.kind))return{state:"out",label:`退勤（${pu.time}）`,note:r.note};
+  return{state:"off",label:"不在"+(pu?`（${pu.kind} ${pu.time}）`:""),note:r.note};
+}
+const fmtTime=iso=>{const d=new Date(iso);return`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
 const hbStyle=hb=>`--dc:${HB_COLOR[hb]||'#888'}`;
 const seatOf=(p,D)=>p.seat_id?D.seatById[p.seat_id]||null:null;
 
@@ -275,10 +308,11 @@ function renderPlan(){
   for(const a of areas)plan.append(h("div",{class:"area"+(selected("area",a.id)?" sel":""),"data-id":a.id,style:`left:${a.x}px;top:${a.y}px;width:${a.w}px;height:${a.h}px`},
     h("span",{class:"alabel",text:a.label||"エリア"}),S.edit?h("span",{class:"rz","aria-hidden":"true"}):null));
   const selPhone=S.sheet&&S.sheet.mode==="phone"?S.sheet.id:null;
-  for(const s of seats){const p=D.bySeat[s.id],E=seatExt(s,p,D);
+  for(const s of seats){const p=D.bySeat[s.id],E=seatExt(s,p,D),A=attOf(p);
     const extText=E.shared?`☎ ${E.ext} 共用`:(E.ext?"内線 "+E.ext:(p?"内線 —":""));
-    plan.append(h("button",{type:"button",class:"seat"+(p?"":" empty")+(S.hl===s.id?" hl":"")+(selected("seat",s.id)?" sel":"")+(selPhone&&s.phone_id===selPhone?" ph-hl":"")+(S.hlPhone&&s.phone_id===S.hlPhone?" ph-pulse":""),"data-id":s.id,
-      style:`left:${s.x}px;top:${s.y}px;${p?hbStyle(p.honbu):""}`,"aria-label":p?`${p.name} 内線 ${E.ext||"なし"}${E.shared?"（共用）":""}`:`空席 ${s.floor} 席${D.seatNo[s.id]}`},
+    plan.append(h("button",{type:"button",class:"seat"+(p?"":" empty")+(S.hl===s.id?" hl":"")+(selected("seat",s.id)?" sel":"")+(selPhone&&s.phone_id===selPhone?" ph-hl":"")+(S.hlPhone&&s.phone_id===S.hlPhone?" ph-pulse":"")+(A&&A.state!=="in"?" absent":""),"data-id":s.id,
+      style:`left:${s.x}px;top:${s.y}px;${p?hbStyle(p.honbu):""}`,"aria-label":p?`${p.name} 内線 ${E.ext||"なし"}${E.shared?"（共用）":""}`:`空席 ${s.floor} 席${D.seatNo[s.id]}`,title:A?A.label+(A.note?"　"+A.note:""):null},
+      A?h("span",{class:"att "+A.state+(A.note?" memo":""),"aria-hidden":"true"}):null,
       h("span",{class:"nm",text:p?p.name:"空席"}),extText?h("span",{class:"ext"+(E.shared?" shared":""),text:extText}):null));}
   for(const ph of S.phones.filter(x=>x.floor===S.floor&&x.on_map&&x.x!=null)){
     const n=(D.seatsByPhone[ph.id]||[]).length;if(!S.edit&&n===1)continue;
@@ -292,9 +326,12 @@ function renderPlan(){
 function renderLegend(){
   const D=derive(),el=$("#legend");el.replaceChildren();if(!S.loaded)return;
   const seats=S.seats.filter(s=>s.floor===S.floor),used=seats.filter(s=>D.bySeat[s.id]);
-  el.append(h("span",{class:"stat"},`${S.floor}：席 `,h("b",{text:seats.length}),"　在席 ",h("b",{text:used.length}),"　空席 ",h("b",{text:seats.length-used.length})));
+  el.append(h("span",{class:"stat"},`${S.floor}：席 `,h("b",{text:seats.length}),"　配置 ",h("b",{text:used.length}),"　空席 ",h("b",{text:seats.length-used.length})));
   const hbs=[...new Set(used.map(s=>D.bySeat[s.id].honbu).filter(Boolean))];
   for(const b of hbs)el.append(h("span",{},h("span",{class:"dot",style:hbStyle(b)}),b));
+  if(attToday()){const ins=used.filter(st=>{const a=attOf(D.bySeat[st.id]);return a&&a.state==="in";}).length;
+    el.append(h("span",{class:"lg"},h("span",{class:"att in"}),`在席 ${ins}名`),h("span",{class:"lg"},h("span",{class:"att"}),`不在 ${used.length-ins}名`),h("span",{text:`（勤怠データ ${fmtTime(S.attAsOf)} 時点）`}));}
+  else if(S.attAsOf)el.append(h("span",{class:"stale",text:`在席情報は本日まだ取り込まれていません（前回 ${fmtTime(S.attAsOf)}）`}));
   if(S.phones.some(x=>x.floor===S.floor&&x.on_map))el.append(h("span",{text:"☎ は共用電話・代表番号（クリックで使う人を表示）"}));
 }
 function renderExtList(){
@@ -358,9 +395,9 @@ function closeSheet(){if(!S.sheet)return;S.sheet=null;$("#sheet").hidden=true;re
 function renderSheet(){
   const sh=$("#sheet");if(!S.sheet){sh.hidden=true;return;}
   const{mode,id}=S.sheet;
-  const kicker={detail:"社員情報",seat:"座席の設定",area:"エリアの設定",phone:S.edit?"電話機の設定":"電話機"}[mode];
-  const body={detail:sheetDetail,seat:sheetSeat,area:sheetArea,phone:S.edit?sheetPhoneEdit:sheetPhone}[mode](id);
-  sh.replaceChildren(h("div",{class:"sh-bar"},h("span",{class:"sh-kicker",text:kicker}),h("button",{type:"button",class:"x","aria-label":"閉じる",onclick:closeSheet},"×")),...body);
+  const kicker={detail:"社員情報",seat:"座席の設定",area:"エリアの設定",phone:S.edit?"電話機の設定":"電話機",import:"在席情報の取り込み"}[mode];
+  const body={detail:sheetDetail,seat:sheetSeat,area:sheetArea,phone:S.edit?sheetPhoneEdit:sheetPhone,import:sheetImport}[mode](id);
+  sh.replaceChildren(h("div",{class:"sh-bar"},h("span",{class:"sh-kicker",text:kicker}),h("button",{type:"button",class:"x","aria-label":"閉じる",onclick:closeSheet},"×")),...body.filter(Boolean));
   sh.hidden=false;
 }
 function row(label,val,o={}){
@@ -377,7 +414,8 @@ function sheetDetail(pid){
     h("dl",{class:"rows"},row("内線",E.ext,{mono:true,note:E.shared?E.users.map(st=>D.bySeat[st.id]).filter(u=>u&&u.id!==p.id).map(u=>shortName(u.name)+"さん").join("・")+"と共用":(E.phone&&E.phone.label?E.phone.label:"")}),
       ...(mobiles.length?mobiles.map(m=>row("携帯",m,{tel:true})):[row("携帯","")]),
       p.phone_direct?row("直通",p.phone_direct,{tel:true}):null,row("メール",p.email),
-      row("座席",s?`${s.floor}・席 ${D.seatNo[s.id]}`:"未配置",{nocopy:true}))];
+      row("座席",s?`${s.floor}・席 ${D.seatNo[s.id]}`:"未配置",{nocopy:true}),
+      (()=>{const A=attOf(p);return A?row("在席",A.label,{nocopy:true,note:[A.note,`勤怠データ ${fmtTime(S.attAsOf)} 時点`].filter(Boolean).join("　")}):null;})())];
 }
 function sheetSeat(id){
   const D=derive(),s=D.seatById[id];if(!s)return[h("p",{class:"muted",text:"この席は削除されました。"})];
@@ -457,6 +495,59 @@ function sheetPhoneEdit(id){
     h("label",{class:"inline"},auto,"電話マークを使う席の真ん中へ移動する"),
     h("label",{class:"inline"},onmap,"図面に表示する（外すと内線一覧にだけ載ります）"),
     h("div",{class:"actions"},h("button",{type:"button",class:"btn primary",onclick:save},"保存"),del)];
+}
+/* ---------- 在席CSVの取り込み ---------- */
+function parseCSV(text){
+  const rows=[];let row=[],f="",q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++;}else q=false;}else f+=c;}
+    else if(c==='"')q=true;else if(c===","){row.push(f);f="";}
+    else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(f);rows.push(row);row=[];f="";}
+    else f+=c;}
+  if(f||row.length){row.push(f);rows.push(row);}
+  return rows.filter(r=>r.some(v=>v.trim()));
+}
+function decodeCSV(buf){
+  try{return new TextDecoder("utf-8",{fatal:true}).decode(buf).replace(/^\uFEFF/,"");}
+  catch(e){return new TextDecoder("shift_jis").decode(buf);}
+}
+let IMPORT=null;
+$("#importBtn").addEventListener("click",()=>{$("#csvFile").value="";$("#csvFile").click();});
+$("#csvFile").addEventListener("change",async e=>{
+  const file=e.target.files[0];if(!file)return;
+  const rows=parseCSV(decodeCSV(await file.arrayBuffer()));
+  const head=(rows.shift()||[]).map(v=>v.trim());
+  const col=k=>head.indexOf(k);
+  const iName=col("氏名"),iNo=col("従業員番号"),iSt=col("状況"),iPu=col("打刻"),iNote=col("内容");
+  if(iName<0||iSt<0){toast("在席状況確認のCSVではないようです（「氏名」「状況」の列が見つかりません）");return;}
+  const D=derive(),seated=S.people.filter(p=>seatOf(p,D));
+  const byKey={},dup=new Set();
+  for(const p of seated){const k=nameKey(p.name);if(byKey[k])dup.add(k);byKey[k]=p;}
+  const matched=[],used=new Set();let other=0;
+  for(const r of rows){const k=nameKey(r[iName]);const p=!dup.has(k)&&byKey[k];
+    if(!p){other++;continue;}
+    used.add(p.id);
+    matched.push({employee_id:p.id,emp_no:(iNo>=0?r[iNo]:"").trim(),status:(r[iSt]||"").trim(),punch:(iPu>=0?r[iPu]:"").trim(),note:(iNote>=0?r[iNote]:"").trim(),_name:p.name});}
+  IMPORT={file:file.name,total:rows.length,matched,other,missing:seated.filter(p=>!used.has(p.id)),dup:[...dup]};
+  openSheet("import",null);
+});
+function sheetImport(){
+  if(!IMPORT)return[h("p",{class:"muted",text:"CSVを選んでください。"})];
+  const I=IMPORT,ins=I.matched.filter(r=>r.status==="在席").length;
+  return[h("p",{class:"hint",text:I.file}),
+    h("div",{class:"imp-sum"},
+      h("span",{text:"CSVの件数"}),h("b",{text:I.total}),
+      h("span",{text:"座席表の社員と一致"}),h("b",{text:I.matched.length}),
+      h("span",{text:"　うち 在席"}),h("b",{text:ins}),
+      h("span",{text:"座席表にいて、CSVにいない人（不在として表示）"}),h("b",{text:I.missing.length}),
+      h("span",{text:"本社以外などで取り込まない行"}),h("b",{text:I.other})),
+    I.missing.length?h("div",{},h("div",{class:"lbl",text:"CSVにいない人"}),h("div",{class:"imp-list",text:I.missing.map(p=>p.name).join("、")}),
+      h("p",{class:"hint",text:"休みの人のほか、勤怠システムと社員管理で氏名の表記が違う人もここに出ます。"})):null,
+    I.dup.length?h("p",{class:"hint",text:"同姓同名のため照合できない人がいます："+I.dup.join("、")}):null,
+    h("div",{class:"actions"},h("button",{type:"button",class:"btn primary",disabled:!I.matched.length,onclick:async()=>{
+      const rows=I.matched.map(({_name,...r})=>r);closeSheet();IMPORT=null;
+      await write(sb.rpc('seat_import_attendance',{p_rows:rows}),`在席情報を反映しました（${rows.length}名）`);}},"反映する"),
+      h("button",{type:"button",class:"btn",onclick:closeSheet},"やめる"))];
 }
 function sheetArea(id){
   const a=S.areas.find(x=>x.id===id);if(!a)return[h("p",{class:"muted",text:"このエリアは削除されました。"})];
@@ -539,7 +630,7 @@ async function start(session){
   if(!canView){showNotice(role==='vehicle_phone'?"座席表は現在準備中です。公開までお待ちください。":"座席表を見る権限がありません。");return;}
   S.canEdit=role==='full';
   $("#userChip").textContent=session.user.email;
-  $("#loginView").hidden=true;$("#appView").hidden=false;$("#editBtn").hidden=!S.canEdit;
+  $("#loginView").hidden=true;$("#appView").hidden=false;$("#editBtn").hidden=!S.canEdit;$("#importBtn").hidden=!S.canEdit;
   fit();render();await loadAll();
 }
 function showNotice(m){$("#loginView").hidden=true;$("#appView").hidden=true;const n=$("#noticeView");n.querySelector("p").textContent=m;n.hidden=false;}
