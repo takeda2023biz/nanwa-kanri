@@ -18,7 +18,7 @@ body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:14px;
 .nav-btn:hover:not(.active){color:#1a1a1a;background:#f9f9f7;}
 .main{padding:24px;max-width:1400px;margin:0 auto;}
 .page{display:none;}.page.active{display:block;}
-.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
 .b-blue{background:#E6F1FB;color:#0C447C;}
 .b-green{background:#EAF3DE;color:#27500A;}
 .b-amber{background:#FAEEDA;color:#633806;}
@@ -133,6 +133,7 @@ table.cf td.ck{width:40px;text-align:center;}
   <button class="nav-btn" data-page="confirm">確認表</button>
   <button class="nav-btn" data-page="worktypes">作業内容マスタ</button>
   <button class="nav-btn" data-page="staff">社員（工事課）</button>
+  <button class="nav-btn" data-page="kintone">kintone連携</button>
 </div>
 
 <div class="main">
@@ -249,6 +250,29 @@ table.cf td.ck{width:40px;text-align:center;}
     <div class="tbl-wrap" id="sf-table"></div>
     <div class="note-box">nanwa-kanri の社員情報のうち、所属が「建設事業本部 工事課」の社員（と予定入力の対象に追加した社員）を表示しています。社員の追加・変更は nanwa-kanri で行ってください。担当現場は、現場マスタの「現場代理人」「担当者」に登録されている進行中の現場です。</div>
   </div>
+
+  <div class="page" id="page-kintone">
+    <div class="controls">
+      <input class="grow" id="kn-q" type="text" placeholder="工事番号・工事名・代理人・元請業者・現場名で検索">
+      <select id="kn-term"><option value="">すべての期</option></select>
+      <select id="kn-status">
+        <option value="">すべての状況</option>
+        <option value="施工中" selected>施工中</option>
+        <option value="精算中">精算中</option>
+        <option value="見積中">見積中</option>
+        <option value="完了">完了</option>
+        <option value="(空欄)">（空欄）</option>
+      </select>
+      <button class="btn" id="kn-sync" title="kintone から今すぐ取り込みます（自動同期の設定後に使えます）">今すぐ同期</button>
+    </div>
+    <div id="kn-log" class="hint" style="padding:0 0 10px;"></div>
+    <div class="section-title" style="font-weight:600;margin:4px 0 8px;">要確認</div>
+    <div class="tbl-wrap" id="kn-check" style="margin-bottom:18px;"></div>
+    <div class="section-title" style="font-weight:600;margin:4px 0 8px;">kintone の工事（受注・売上管理）</div>
+    <div class="tbl-wrap" id="kn-table"></div>
+    <div class="note-box">工事の基本情報（工事番号・工事名・受注形態・状況・代理人・工期・金額）は kintone「受注・売上管理」が正です。ここは kintone の写しを表示しているだけで、変更は kintone で行ってください（1日数回、自動でこのアプリに反映されます）。<br>
+    kintone の工事は、現場コード（工事番号）または現場名で、このアプリの現場に自動で対応付けます。どの現場にも当たらない工事は新しい現場として登録します。現場代理人は、未登録の現場にだけ kintone の代理人を登録し、違う場合は上の「要確認」に表示します。</div>
+  </div>
 </div>
 
 <!-- モーダル: 現場 -->
@@ -263,6 +287,9 @@ table.cf td.ck{width:40px;text-align:center;}
       <div class="form-row"><label>工期（開始）</label><input id="sf-start" type="date"></div>
       <div class="form-row"><label>工期（終了）</label><input id="sf-end" type="date"></div>
       <div class="form-row full"><label>備考</label><textarea id="sf-notes"></textarea></div>
+      <div class="form-section" id="sf-kintone-title">kintone（受注・売上管理）</div>
+      <div class="form-row full" id="sf-kintone-wrap"></div>
+      <div class="form-row full muted" id="sf-kintone-note" style="display:none;">この現場の 発注者・工期・状態 は kintone の値で自動更新されます（ここで変更しても次の同期で戻ります）。変更は kintone で行ってください。</div>
       <div class="form-section" id="sf-codes-title">現場コード</div>
       <div class="form-row full" id="sf-codes-wrap"></div>
       <div class="form-section">現場代理人（担当期間）</div>
@@ -334,6 +361,8 @@ const FREE = '__free__';
 
 // ---- 共通データ ----
 let HONBU = [], STAFF = [], SITES = [], CODES = [], WTYPES = [], VENDORS = [], MANAGERS = [], SVENDORS = [], MEMBERS = [];
+let KINTONE = [];           // kintone（受注・売上管理）の写し（09_kintone_sync.sql 未実行なら空）
+let KINTONE_OK = false;
 let MEMBERS_OK = true;      // site_members（08_site_members.sql）が未作成なら false（現場の絞り込みをしない）
 let RECENT = [];            // 予定入力中の社員が直近2か月に入力した現場ID（新しい順）
 let HOLIDAYS = {};          // 'YYYY-MM-DD' -> 祝日名
@@ -391,7 +420,7 @@ document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click
 // データ読み込み
 // =====================================================================
 async function loadMasters(){
-  const [st, si, co, wt, vd, mg, sv, hb, mb] = await Promise.all([
+  const [st, si, co, wt, vd, mg, sv, hb, mb, kt] = await Promise.all([
     sb.from('koujika_staff').select('*').order('yomi', { ascending: true, nullsFirst: false }),
     sb.from('sites').select('*').order('site_name'),
     sb.from('site_codes').select('*').order('code'),
@@ -401,6 +430,7 @@ async function loadMasters(){
     sb.from('site_vendors').select('*'),
     sb.from('honbu_staff').select('*').order('yomi', { ascending: true, nullsFirst: false }),
     sb.from('site_members').select('*').order('assigned_from', { ascending: true, nullsFirst: true }),
+    sb.from('v_kintone_koji').select('*').order('record_id', { ascending: false }),
   ]);
   const err = st.error || si.error || co.error || wt.error || vd.error || mg.error || sv.error;
   // honbu_staff（04_honbu_staff.sql）が未作成でも動くように、無ければ工事課の社員だけで代用
@@ -410,6 +440,8 @@ async function loadMasters(){
   VENDORS = vd.data; MANAGERS = mg.data; SVENDORS = sv.data;
   // site_members が未作成（08 未実行）でも動くように、無ければ絞り込みなし
   MEMBERS_OK = !mb.error; MEMBERS = mb.error ? [] : mb.data;
+  // kintone 連携（09_kintone_sync.sql）が未作成でも動くように
+  KINTONE_OK = !kt.error; KINTONE = kt.error ? [] : kt.data;
   $('vendor-list').innerHTML = VENDORS.filter(v => v.is_active).map(v => `<option value="${esc(v.name)}">`).join('');
 }
 async function loadHolidays(){
@@ -760,10 +792,11 @@ function renderSites(){
     const codes = CODES.filter(c => c.site_id === s.id).map(c => c.code).join(' ');
     const mgrs = [...MANAGERS, ...MEMBERS].filter(m => m.site_id === s.id).map(m => staffName(m.employee_id)).join(' ');
     const vds = SVENDORS.filter(v => v.site_id === s.id).map(v => (vendorById(v.vendor_id) || {}).name || '').join(' ');
-    return [s.site_name, (s.aliases || []).join(' '), codes, s.client_name || '', mgrs, vds].join(' ').toLowerCase().includes(q);
+    const kns = kintoneOf(s.id).map(k => [k.koji_no, k.short_name, k.official_name, k.prime_name].join(' ')).join(' ');
+    return [s.site_name, (s.aliases || []).join(' '), codes, s.client_name || '', mgrs, vds, kns].join(' ').toLowerCase().includes(q);
   });
   const badge = { '進行中': 'b-green', '完了': 'b-gray', '中止': 'b-red' };
-  $('st-table').innerHTML = `<table><thead><tr><th>現場名</th><th>現場コード</th><th>現場代理人</th><th>担当者</th><th class="num">取引先</th><th>工期</th><th>状態</th><th>別表記</th></tr></thead><tbody>${
+  $('st-table').innerHTML = `<table><thead><tr><th>現場名</th><th>現場コード</th><th>現場代理人</th><th>担当者</th><th class="num">取引先</th><th>工期</th><th>状態</th>${KINTONE_OK ? '<th>kintone</th>' : ''}<th>別表記</th></tr></thead><tbody>${
     list.map(s => {
       const codes = CODES.filter(c => c.site_id === s.id);
       return `<tr class="clickable" data-id="${s.id}">
@@ -774,14 +807,46 @@ function renderSites(){
         <td class="num">${SVENDORS.filter(v => v.site_id === s.id && v.status === '有効').length || '<span class="muted">0</span>'}</td>
         <td class="muted">${s.start_date || s.end_date ? esc((s.start_date || '') + ' 〜 ' + (s.end_date || '')) : ''}</td>
         <td><span class="badge ${badge[s.status] || 'b-gray'}">${esc(s.status)}</span></td>
+        ${KINTONE_OK ? `<td>${kintoneBadges(s.id)}</td>` : ''}
         <td class="muted" style="white-space:normal;max-width:240px;">${esc((s.aliases || []).join('、'))}</td></tr>`;
-    }).join('') || '<tr><td colspan="8" class="hint">該当する現場はありません。</td></tr>'
+    }).join('') || `<tr><td colspan="${KINTONE_OK ? 9 : 8}" class="hint">該当する現場はありません。</td></tr>`
   }</tbody></table><div class="hint">${list.length} 件</div>`;
 }
 function memberCell(siteId){
   const names = [...new Set(currentMembers(siteId).map(m => staffName(m.employee_id)))];
   if (!names.length) return '<span class="muted">—</span>';
   return esc(names.slice(0, 3).join('、')) + (names.length > 3 ? ` <span class="muted">ほか${names.length - 3}名</span>` : '');
+}
+// ---- kintone（受注・売上管理）----
+const K_BADGE = { '施工中': 'b-green', '精算中': 'b-amber', '見積中': 'b-blue', '完了': 'b-gray' };
+function kintoneOf(siteId){ return KINTONE.filter(k => k.site_id === siteId && !k.is_deleted); }
+function yen(v){ return v == null ? '' : Number(v).toLocaleString('ja-JP'); }
+function kLink(k, label){ return `<a href="${esc(k.kintone_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${label}</a>`; }
+function kintoneBadges(siteId){
+  const ks = kintoneOf(siteId);
+  if (!ks.length) return '<span class="muted">—</span>';
+  return ks.map(k => kLink(k, `<span class="badge ${K_BADGE[k.k_status] || 'b-gray'}">${esc(k.k_status || '状況なし')}</span>`)
+    + `<span class="muted"> ${esc(k.order_type || '')}</span>`).join('<br>');
+}
+function renderKintoneBox(){
+  const wrap = $('sf-kintone-wrap');
+  if (!KINTONE_OK) { $('sf-kintone-title').style.display = 'none'; wrap.style.display = 'none'; return; }
+  $('sf-kintone-title').style.display = ''; wrap.style.display = '';
+  const ks = siteEditId ? kintoneOf(siteEditId) : [];
+  $('sf-kintone-note').style.display = ks.length ? '' : 'none';
+  if (!ks.length) { wrap.innerHTML = '<div class="muted">kintone の工事と対応していません。</div>'; return; }
+  wrap.innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>工事番号</th><th>工事名（略名）</th><th>受注形態</th><th>状況</th><th>代理人</th><th>元請業者／施主</th><th>工期</th><th class="num">変更契約額</th><th></th></tr></thead><tbody>${
+    ks.map(k => `<tr>
+      <td class="mono">${esc(k.koji_no || '—')}</td>
+      <td title="${esc(k.official_name || '')}">${esc(k.short_name || '')}<div class="muted">${esc(k.term || '')}</div></td>
+      <td>${esc(k.order_type || '')}</td>
+      <td><span class="badge ${K_BADGE[k.k_status] || 'b-gray'}">${esc(k.k_status || '—')}</span></td>
+      <td>${esc(k.manager_name || '')}</td>
+      <td>${esc(k.order_type === '元請' || k.prime_name === '元請' ? (k.owner_name || '') : (k.prime_name || ''))}</td>
+      <td class="muted">${esc((k.start_date || '') + ' 〜 ' + (k.end_date || ''))}</td>
+      <td class="num">${yen(k.revised_amount)}</td>
+      <td>${kLink(k, 'kintoneで開く')}</td></tr>`).join('')
+  }</tbody></table></div>`;
 }
 $('st-q').addEventListener('input', renderSites);
 $('st-status').addEventListener('change', renderSites);
@@ -801,7 +866,7 @@ function openSiteModal(id){
   $('sf-end').value = s.end_date || '';
   $('sf-notes').value = s.notes || '';
   $('sf-del').style.display = id ? '' : 'none';
-  renderCodesBox(); renderMgrBox(); renderMemBox(); renderVdBox();
+  renderCodesBox(); renderMgrBox(); renderMemBox(); renderVdBox(); renderKintoneBox();
   openModal('site-modal');
 }
 function renderCodesBox(){
@@ -1193,6 +1258,85 @@ function renderStaff(){
 }
 
 // =====================================================================
+// kintone連携
+// =====================================================================
+let KCHECK = [];
+async function loadKintonePage(){
+  if (!KINTONE_OK) {
+    $('kn-log').innerHTML = '';
+    $('kn-check').innerHTML = '<div class="hint">kintone 連携の準備（sql/09_kintone_sync.sql）がまだ実行されていません。</div>';
+    $('kn-table').innerHTML = '';
+    return;
+  }
+  const [lg, ck] = await Promise.all([
+    sb.from('kintone_sync_log').select('*').order('id', { ascending: false }).limit(1),
+    sb.from('v_kintone_check').select('*'),
+  ]);
+  const last = (lg.data || [])[0];
+  $('kn-log').innerHTML = last
+    ? `最終同期: ${esc(new Date(last.finished_at || last.started_at).toLocaleString('ja-JP'))}（${esc(last.source || '')}）`
+      + (last.ok === false ? ` <span class="badge b-red">失敗</span> ${esc(last.message || '')}`
+         : ` 取得 ${last.fetched ?? '-'}件・変更 ${last.changed ?? '-'}件・新しい現場 ${last.new_sites ?? 0}件・新しい現場コード ${last.new_codes ?? 0}件`)
+    : 'まだ同期していません。';
+  KCHECK = (ck.error ? [] : ck.data).sort((x, y) => (x.sort - y.sort) || String(x['工事番号'] || '~').localeCompare(String(y['工事番号'] || '~')));
+  const terms = [...new Set(KINTONE.map(k => k.term).filter(Boolean))].sort().reverse();
+  const tsel = $('kn-term'); const cur = tsel.value;
+  tsel.innerHTML = '<option value="">すべての期</option>' + terms.map(t => `<option ${t === cur ? 'selected' : ''}>${esc(t)}</option>`).join('');
+  renderKintone();
+}
+function renderKintone(){
+  $('kn-check').innerHTML = KCHECK.length
+    ? `<table><thead><tr><th>区分</th><th>工事番号</th><th>kintone の工事名</th><th>このアプリの現場</th><th>内容</th></tr></thead><tbody>${
+        KCHECK.map(c => {
+          const k = KINTONE.find(x => x.record_id === c.record_id);
+          return `<tr><td><span class="badge ${c.sort <= 2 ? 'b-amber' : c.sort >= 8 ? 'b-gray' : 'b-red'}">${esc(c['区分'])}</span></td>
+            <td class="mono">${esc(c['工事番号'] || '')}</td>
+            <td>${k ? kLink(k, esc(c['kintoneの工事名'] || '')) : esc(c['kintoneの工事名'] || '')}</td>
+            <td>${esc(c['現場'] || '')}</td><td class="muted" style="white-space:normal;">${esc(c['内容'] || '')}</td></tr>`;
+        }).join('')}</tbody></table>`
+    : '<div class="hint">要確認の項目はありません。</div>';
+  const q = $('kn-q').value.trim().toLowerCase();
+  const tf = $('kn-term').value, sf = $('kn-status').value;
+  const list = KINTONE.filter(k => {
+    if (k.is_deleted) return false;
+    if (tf && k.term !== tf) return false;
+    if (sf && (sf === '(空欄)' ? k.k_status : k.k_status !== sf)) return false;
+    if (!q) return true;
+    return [k.koji_no, k.short_name, k.official_name, k.manager_name, k.prime_name, k.owner_name, k.site_name].join(' ').toLowerCase().includes(q);
+  });
+  $('kn-table').innerHTML = `<table><thead><tr><th>工事番号</th><th>期</th><th>工事名（略名）</th><th>受注形態</th><th>状況</th><th>代理人</th><th>元請業者／施主</th><th>工期</th><th class="num">変更契約額</th><th>このアプリの現場</th></tr></thead><tbody>${
+    list.map(k => `<tr class="${k.site_id ? 'clickable' : ''}" data-site="${esc(k.site_id || '')}">
+      <td class="mono">${esc(k.koji_no || '—')}</td>
+      <td class="muted">${esc(k.term || '')}</td>
+      <td title="${esc(k.official_name || '')}">${kLink(k, esc(k.short_name || '（名称なし）'))}</td>
+      <td>${esc(k.order_type || '')}</td>
+      <td><span class="badge ${K_BADGE[k.k_status] || 'b-gray'}">${esc(k.k_status || '—')}</span></td>
+      <td>${esc(k.manager_name || '')}</td>
+      <td>${esc(k.order_type === '元請' || k.prime_name === '元請' ? (k.owner_name || '') : (k.prime_name || ''))}</td>
+      <td class="muted">${esc((k.start_date || '') + ' 〜 ' + (k.end_date || ''))}</td>
+      <td class="num">${yen(k.revised_amount)}</td>
+      <td>${k.site_id ? esc(k.site_name || '') : '<span class="muted">対象外の期</span>'}</td></tr>`).join('')
+    || '<tr><td colspan="10" class="hint">該当する工事はありません。</td></tr>'
+  }</tbody></table><div class="hint">${list.length} 件（現場名の行をクリックすると現場の画面を開きます）</div>`;
+}
+$('kn-q').addEventListener('input', renderKintone);
+$('kn-term').addEventListener('change', renderKintone);
+$('kn-status').addEventListener('change', renderKintone);
+$('kn-table').addEventListener('click', e => { const tr = e.target.closest('tr[data-site]'); if (tr && tr.dataset.site) openSiteModal(tr.dataset.site); });
+$('kn-sync').addEventListener('click', async () => {
+  const b = $('kn-sync'); b.disabled = true; b.textContent = '同期中…';
+  const { data, error } = await sb.rpc('request_kintone_sync');
+  if (error) {
+    b.disabled = false; b.textContent = '今すぐ同期';
+    alert(/request_kintone_sync/.test(error.message || '') ? '自動同期の設定（sql/11_kintone_cron.sql）がまだ済んでいません。' : plain(error));
+    return;
+  }
+  if (data && data.ok === false) { b.disabled = false; b.textContent = '今すぐ同期'; alert(data.message); return; }
+  toast('kintone に問い合わせています。30秒ほどで反映されます');
+  setTimeout(async () => { await refreshMasters(); b.disabled = false; b.textContent = '今すぐ同期'; toast('最新の内容を読み込みました'); }, 30000);
+});
+
+// =====================================================================
 // 画面切替・起動
 // =====================================================================
 let currentPage = 'schedule';
@@ -1203,6 +1347,7 @@ function renderPage(page){
   if (page === 'vendors') renderVendors();
   if (page === 'confirm') renderConfirm();
   if (page === 'staff') renderStaff();
+  if (page === 'kintone') loadKintonePage();
 }
 document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => {
   const page = b.dataset.page;
