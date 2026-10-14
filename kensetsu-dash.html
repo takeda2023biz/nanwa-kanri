@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>建設 経営ダッシュボード</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --surface-0:#f5f5f3; --surface-1:#ffffff; --border:#e6e5df; --grid:#eeede8;
+  --text-primary:#1a1a1a; --text-secondary:#52514e; --text-muted:#8a8984;
+  --series-1:#2a78d6; --series-1-soft:#cde2fb; --accent-bg:#f9f9f7;
+  --good:#1a7f37; --warn:#9a6700; --bad:#b42318;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    --surface-0:#121211; --surface-1:#1a1a19; --border:#2e2e2b; --grid:#262624;
+    --text-primary:#f0efec; --text-secondary:#c3c2b7; --text-muted:#8f8e86;
+    --series-1:#3987e5; --series-1-soft:#1c3a5e; --accent-bg:#20201e;
+    --good:#4ac26b; --warn:#d4a72c; --bad:#f47067;
+  }
+}
+:root[data-theme="dark"]{
+  --surface-0:#121211; --surface-1:#1a1a19; --border:#2e2e2b; --grid:#262624;
+  --text-primary:#f0efec; --text-secondary:#c3c2b7; --text-muted:#8f8e86;
+  --series-1:#3987e5; --series-1-soft:#1c3a5e; --accent-bg:#20201e;
+  --good:#4ac26b; --warn:#d4a72c; --bad:#f47067;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:14px;background:var(--surface-0);color:var(--text-primary);min-height:100vh;}
+.topbar{background:var(--surface-1);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;min-height:56px;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:10;}
+.title{font-size:16px;font-weight:700;}
+.sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+select,input,button{font-family:inherit;font-size:13px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--surface-1);color:var(--text-primary);padding:0 10px;}
+button{cursor:pointer;font-weight:500;}
+button.primary{background:var(--text-primary);color:var(--surface-1);border-color:var(--text-primary);}
+.main{padding:20px 24px 48px;max-width:1400px;margin:0 auto;}
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px;}
+.card h2{font-size:14px;font-weight:700;margin-bottom:4px;}
+.card .note{font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;}
+.tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
+.tile .k{font-size:11px;color:var(--text-secondary);}
+.tile .v{font-size:22px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;}
+.tile .u{font-size:12px;font-weight:500;color:var(--text-secondary);margin-left:2px;}
+.tile .s{font-size:11px;color:var(--text-muted);margin-top:4px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media(max-width:900px){.grid2{grid-template-columns:1fr;}}
+.chart{position:relative;}
+.chart svg{display:block;width:100%;height:auto;overflow:visible;}
+.chart .axis text{fill:var(--text-muted);font-size:11px;}
+.chart .gridline{stroke:var(--grid);stroke-width:1;}
+.chart .bar{fill:var(--series-1);}
+.chart .bar.dim{fill:var(--series-1-soft);}
+.chart .hit{fill:transparent;cursor:default;}
+.chart .hit:hover + .bar, .chart .barg:hover .bar{opacity:.85;}
+.chart .lbl{fill:var(--text-secondary);font-size:11px;font-variant-numeric:tabular-nums;}
+.tip{position:fixed;pointer-events:none;background:var(--surface-1);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;box-shadow:0 4px 16px rgba(0,0,0,.12);display:none;z-index:50;white-space:nowrap;}
+.hbar{display:grid;grid-template-columns:minmax(90px,170px) 1fr 110px;gap:8px;align-items:center;padding:4px 0;font-size:12px;}
+.hbar .name{color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hbar .track{height:14px;position:relative;}
+.hbar .fill{position:absolute;left:0;top:0;bottom:0;background:var(--series-1);border-radius:0 4px 4px 0;min-width:2px;}
+.hbar .val{text-align:right;font-variant-numeric:tabular-nums;color:var(--text-primary);}
+.tbl-wrap{overflow:auto;max-height:560px;border:1px solid var(--border);border-radius:10px;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{background:var(--accent-bg);color:var(--text-secondary);font-weight:600;font-size:11px;padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;cursor:pointer;user-select:none;}
+tbody td{padding:6px 10px;border-bottom:1px solid var(--grid);white-space:nowrap;}
+tbody tr:hover{background:var(--accent-bg);}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
+tfoot td{padding:8px 10px;font-weight:700;border-top:1px solid var(--border);background:var(--accent-bg);position:sticky;bottom:0;}
+.muted{color:var(--text-muted);}
+.badge{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid var(--border);color:var(--text-secondary);}
+.neg{color:var(--bad);}
+.minibar{display:inline-block;height:8px;background:var(--series-1);border-radius:0 3px 3px 0;vertical-align:middle;margin-left:6px;}
+a{color:var(--series-1);}
+.gate{max-width:420px;margin:12vh auto 0;background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:28px;}
+.gate h1{font-size:18px;margin-bottom:6px;}
+.gate p{font-size:12px;color:var(--text-secondary);line-height:1.7;margin-bottom:16px;}
+.gate input{width:100%;margin-bottom:10px;}
+.gate button{width:100%;}
+.err{color:var(--bad);font-size:12px;margin-top:8px;min-height:18px;}
+.banner{background:var(--accent-bg);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--text-secondary);margin-bottom:16px;line-height:1.7;}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+.hidden{display:none!important;}
+@media print{.topbar .controls,.gate{display:none!important;} .tbl-wrap{max-height:none;overflow:visible;} body{background:#fff;}}
+</style>
+</head>
+<body>
+
+<!-- 閲覧キー -->
+<div class="gate" id="gate">
+  <h1>建設 経営ダッシュボード</h1>
+  <p>経営層・管理本部向けの画面です。受注額・粗利・請求・労務費を表示します。<br>閲覧キーを入力してください（このブラウザのタブを閉じるまで有効）。</p>
+  <form id="gate-form">
+    <input id="gate-key" type="password" autocomplete="current-password" placeholder="閲覧キー">
+    <button class="primary" type="submit">表示する</button>
+  </form>
+  <div class="err" id="gate-err"></div>
+</div>
+
+<div id="app" class="hidden">
+  <div class="topbar">
+    <div>
+      <div class="title">建設 経営ダッシュボード</div>
+      <div class="sub" id="sync-info"></div>
+    </div>
+    <div class="controls">
+      <label class="muted" for="term">期</label>
+      <select id="term"></select>
+      <button id="reload" title="最新のデータを読み込み直します">更新</button>
+      <button id="logout">閉じる</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="banner hidden" id="fin-banner"></div>
+
+    <div class="tiles" id="tiles"></div>
+
+    <div class="card">
+      <h2>期別の受注額（百万円）</h2>
+      <div class="note">変更契約額（税抜）の合計。棒にマウスを合わせると件数・予想粗利・請求済を表示します。選択中の期を強調表示しています（棒をクリックすると期を切り替え）。</div>
+      <div class="chart" id="chart-terms"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>受注形態別</h2>
+        <div class="note" id="note-type"></div>
+        <div id="by-type"></div>
+      </div>
+      <div class="card">
+        <h2>工種別</h2>
+        <div class="note" id="note-kind"></div>
+        <div id="by-kind"></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>状況別</h2>
+        <div class="note">件数と変更契約額。見積中・空欄（物件予定）を含みます。</div>
+        <div id="by-status"></div>
+      </div>
+      <div class="card">
+        <h2>代理人別（施工中・精算中）</h2>
+        <div class="note">選択中の期で、状況が施工中・精算中の工事の変更契約額。</div>
+        <div id="by-manager"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>現場別の人工・労務費</h2>
+      <div class="note">建設アプリの予定（業務日報）から、労務費現場振替表と同じ計算（月給与 ÷ 出勤日数 × 現場の日数）で集計。本社勤務は 489000 諸工事。
+        「kintone 人件費」は kintone に経理が入力済みの累計値（参考）。</div>
+      <div class="row">
+        <label class="muted" for="ym">月</label>
+        <select id="ym"></select>
+        <span class="muted" id="labor-sum"></span>
+      </div>
+      <div class="tbl-wrap"><table id="labor-tbl"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>工事一覧</h2>
+      <div class="note">選択中の期の工事（kintone 受注・売上管理）。見出しをクリックすると並び替え。工事名から kintone を開けます。</div>
+      <div class="row">
+        <input id="q" type="search" placeholder="工事番号・工事名・代理人・元請業者で検索" style="flex:1;min-width:220px;">
+        <select id="f-status"><option value="">すべての状況</option></select>
+        <select id="f-type"><option value="">すべての受注形態</option></select>
+      </div>
+      <div class="tbl-wrap"><table id="koji-tbl"></table></div>
+    </div>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const SUPABASE_URL = 'https://cicxvcjnvkynhukbnrns.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { db: { schema: 'kensetsu' } });
+const $ = id => document.getElementById(id);
+const KEY_STORE = 'kensetsu_dash_key';
+
+let DATA = null, KOJI = [], TERMS = [], term = '', ym = '';
+let sortKoji = { key: 'revised', dir: -1 }, sortLabor = { key: 'cost', dir: -1 };
+
+// ---------- 表示用 ----------
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const n = v => (v == null || v === '' || isNaN(v)) ? null : Number(v);
+const sum = (arr, f) => arr.reduce((a, x) => a + (n(f(x)) || 0), 0);
+function yen(v){ v = n(v); return v == null ? '<span class="muted">—</span>' : (v < 0 ? '<span class="neg">' : '') + Math.round(v).toLocaleString('ja-JP') + (v < 0 ? '</span>' : ''); }
+function man(v){ v = n(v); if (v == null) return '—'; return (v / 1e6).toLocaleString('ja-JP', { maximumFractionDigits: 1, minimumFractionDigits: 1 }); }   // 百万円
+function pct(a, b){ a = n(a); b = n(b); return (a == null || !b) ? '—' : (a / b * 100).toFixed(1) + '%'; }
+function safeGet(k){ try { return sessionStorage.getItem(k); } catch(e){ return null; } }
+function safeSet(k, v){ try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch(e){} }
+const tip = $('tip');
+function showTip(e, html){ tip.innerHTML = html; tip.style.display = 'block'; const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); const y = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8); tip.style.left = x + 'px'; tip.style.top = y + 'px'; }
+function hideTip(){ tip.style.display = 'none'; }
+
+// ---------- 読み込み ----------
+async function load(key){
+  const { data, error } = await sb.rpc('dash_data', { p_key: key });
+  if (error) throw error;
+  return data;
+}
+$('gate-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const key = $('gate-key').value.trim();
+  if (!key) return;
+  $('gate-err').textContent = '確認しています…';
+  try {
+    DATA = await load(key);
+    safeSet(KEY_STORE, key);
+    start();
+  } catch (err) {
+    $('gate-err').textContent = /閲覧キー/.test(err.message || '') ? '閲覧キーが違います。' : 'データを読み込めませんでした: ' + (err.message || err);
+  }
+});
+$('logout').addEventListener('click', () => { safeSet(KEY_STORE, null); location.reload(); });
+$('reload').addEventListener('click', async () => {
+  const key = safeGet(KEY_STORE); if (!key) return location.reload();
+  $('reload').disabled = true;
+  try { DATA = await load(key); start(true); } catch (e) { alert('読み込めませんでした: ' + (e.message || e)); }
+  $('reload').disabled = false;
+});
+
+function start(keepSel){
+  $('gate').classList.add('hidden'); $('app').classList.remove('hidden');
+  KOJI = (DATA.koji || []).map(k => ({ ...k, revised: n(k.revised), gp_plan: n(k.gp_plan), gp_final: n(k.gp_final),
+    cost: n(k.cost), labor: n(k.labor), billed: n(k.billed), unbilled: n(k.unbilled) }));
+  // 期: 古い順（レコード番号の小さい順）
+  const first = {};
+  KOJI.forEach(k => { if (k.term) first[k.term] = Math.min(first[k.term] ?? Infinity, k.id); });
+  TERMS = Object.keys(first).sort((a, b) => first[a] - first[b]);
+  if (!keepSel || !TERMS.includes(term)) term = TERMS.includes('第48期') ? '第48期' : TERMS[TERMS.length - 1];
+  $('term').innerHTML = TERMS.map(t => `<option ${t === term ? 'selected' : ''}>${esc(t)}</option>`).join('');
+  const ls = DATA.last_sync;
+  $('sync-info').textContent = 'kintone 最終同期: ' + (ls ? new Date(ls.at).toLocaleString('ja-JP') + (ls.ok === false ? '（失敗）' : '') : '—')
+    + ' ／ 読込: ' + new Date(DATA.generated_at).toLocaleString('ja-JP');
+  const hasFin = KOJI.some(k => k.has_fin);
+  $('fin-banner').classList.toggle('hidden', hasFin);
+  $('fin-banner').innerHTML = '粗利・原価・請求の項目は、kintone 同期プログラムの更新後（次回の同期以降）に表示されます。現在は受注額・件数のみ集計しています。';
+  // 労務費の月
+  const months = [...new Set((DATA.labor || []).map(l => l.ym))].sort();
+  if (!keepSel || !months.includes(ym)) ym = months[months.length - 1] || '';
+  $('ym').innerHTML = months.map(m => `<option value="${m}" ${m === ym ? 'selected' : ''}>${m.replace('-', '年') + '月'}</option>`).join('') || '<option>データなし</option>';
+  // 絞り込みの選択肢
+  const sts = [...new Set(KOJI.map(k => k.status || '（空欄）'))];
+  $('f-status').innerHTML = '<option value="">すべての状況</option>' + sts.map(s => `<option>${esc(s)}</option>`).join('');
+  const tys = [...new Set(KOJI.map(k => k.type || '（空欄）'))];
+  $('f-type').innerHTML = '<option value="">すべての受注形態</option>' + tys.map(s => `<option>${esc(s)}</option>`).join('');
+  renderAll();
+}
+$('term').addEventListener('change', e => { term = e.target.value; renderAll(); });
+$('ym').addEventListener('change', e => { ym = e.target.value; renderLabor(); });
+['q', 'f-status', 'f-type'].forEach(id => $(id).addEventListener('input', renderKoji));
+
+const inTerm = () => KOJI.filter(k => k.term === term);
+window.addEventListener('resize', () => { if (DATA) renderTermChart(); });
+function renderAll(){ renderTiles(); renderTermChart(); renderBreakdowns(); renderLabor(); renderKoji(); }
+
+// ---------- KPI ----------
+function renderTiles(){
+  const ks = inTerm();
+  const fin = ks.filter(k => k.has_fin);
+  const active = ks.filter(k => k.status === '施工中' || k.status === '精算中');
+  const rev = sum(ks, k => k.revised), gp = sum(fin, k => k.gp_plan);
+  const tiles = [
+    ['受注件数', ks.length.toLocaleString(), '件', `うち施工中・精算中 ${active.length} 件`],
+    ['受注額（変更契約額）', man(rev), '百万円', `税抜。受注金額 ${man(sum(ks, k => k.contract))} 百万円`],
+    ['予想粗利', fin.length ? man(gp) : '—', fin.length ? '百万円' : '', fin.length ? `粗利率 ${pct(gp, sum(fin, k => k.revised))}` : '同期プログラム更新後に表示'],
+    ['最終粗利（人件費抜き）', fin.length ? man(sum(fin, k => k.gp_final)) : '—', fin.length ? '百万円' : '', fin.length ? '完了・精算済の工事で確定' : ''],
+    ['請求済', fin.length ? man(sum(fin, k => k.billed)) : '—', fin.length ? '百万円' : '', ''],
+    ['未請求', fin.length ? man(sum(fin, k => k.unbilled)) : '—', fin.length ? '百万円' : '', fin.length ? `未請求のある工事 ${fin.filter(k => (k.unbilled || 0) > 0).length} 件` : ''],
+  ];
+  $('tiles').innerHTML = tiles.map(([k, v, u, s]) => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${esc(v)}<span class="u">${esc(u)}</span></div><div class="s">${esc(s)}</div></div>`).join('');
+}
+
+// ---------- 期別の縦棒 ----------
+function renderTermChart(){
+  const rows = TERMS.map(t => { const ks = KOJI.filter(k => k.term === t); const fin = ks.filter(k => k.has_fin);
+    return { t, n: ks.length, rev: sum(ks, k => k.revised), gp: fin.length ? sum(fin, k => k.gp_plan) : null, finRev: sum(fin, k => k.revised), billed: fin.length ? sum(fin, k => k.billed) : null }; });
+  const W = Math.max(320, $('chart-terms').clientWidth || 900), H = W < 600 ? 200 : 240, L = 52, R = 8, T = 14, B = 30;
+  const max = Math.max(1, ...rows.map(r => r.rev));
+  const step = niceStep(max / 4); const top = Math.ceil(max / step) * step;
+  const y = v => T + (H - T - B) * (1 - v / top);
+  const bw = (W - L - R) / rows.length;
+  let g = '';
+  for (let v = 0; v <= top + 1; v += step) g += `<line class="gridline" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${(v / 1e6).toLocaleString('ja-JP')}</text>`;
+  let bars = '';
+  rows.forEach((r, i) => {
+    const x = L + i * bw + bw * 0.22, w = bw * 0.56, h = Math.max(0, y(0) - y(r.rev)), rad = Math.min(4, w / 2, h);
+    const path = h > 0 ? `M${x},${y(0)} V${y(r.rev) + rad} Q${x},${y(r.rev)} ${x + rad},${y(r.rev)} H${x + w - rad} Q${x + w},${y(r.rev)} ${x + w},${y(r.rev) + rad} V${y(0)} Z` : '';
+    bars += `<g class="barg" data-i="${i}"><rect class="hit" x="${L + i * bw}" y="${T}" width="${bw}" height="${H - T - B}"/>
+      <path class="bar ${r.t === term ? '' : 'dim'}" d="${path}"/>
+      ${r.t === term ? `<text class="lbl" x="${x + w / 2}" y="${y(r.rev) - 6}" text-anchor="middle">${man(r.rev)}</text>` : ''}
+      <text x="${x + w / 2}" y="${H - B + 18}" text-anchor="middle" style="fill:var(--text-secondary);font-size:11px">${esc(r.t)}</text></g>`;
+  });
+  $('chart-terms').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="期別の受注額（百万円）"><g class="axis">${g}</g>${bars}</svg>`;
+  $('chart-terms').querySelectorAll('.barg').forEach(el => {
+    const r = rows[el.dataset.i];
+    el.addEventListener('mousemove', e => showTip(e, `<b>${esc(r.t)}</b><br>受注額 ${man(r.rev)} 百万円（${r.n} 件）` +
+      (r.gp != null ? `<br>予想粗利 ${man(r.gp)} 百万円（粗利率 ${pct(r.gp, r.finRev)}）<br>請求済 ${man(r.billed)} 百万円` : '')));
+    el.addEventListener('mouseleave', hideTip);
+    el.addEventListener('click', () => { term = r.t; $('term').value = term; renderAll(); });
+  });
+}
+function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw || 1))); const m = raw / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
+
+// ---------- 内訳（横棒） ----------
+function hbars(el, groups, valFmt){
+  const max = Math.max(1, ...groups.map(g => Math.abs(g.v)));
+  $(el).innerHTML = groups.map((g, i) => `<div class="hbar" data-i="${i}"><div class="name" title="${esc(g.k)}">${esc(g.k)}</div>
+    <div class="track"><div class="fill" style="width:${Math.max(0, g.v) / max * 100}%"></div></div><div class="val">${valFmt(g)}</div></div>`).join('') || '<div class="muted">該当なし</div>';
+  $(el).querySelectorAll('.hbar').forEach(row => { const g = groups[row.dataset.i];
+    row.addEventListener('mousemove', e => showTip(e, `<b>${esc(g.k)}</b><br>${g.tip}`)); row.addEventListener('mouseleave', hideTip); });
+}
+function group(ks, keyFn){
+  const m = {};
+  ks.forEach(k => { const key = keyFn(k) || '（空欄）'; (m[key] = m[key] || []).push(k); });
+  return Object.entries(m).map(([k, arr]) => { const fin = arr.filter(x => x.has_fin); const v = sum(arr, x => x.revised);
+    return { k, v, n: arr.length, tip: `${arr.length} 件 ／ 変更契約額 ${man(v)} 百万円` + (fin.length ? `<br>予想粗利 ${man(sum(fin, x => x.gp_plan))} 百万円（${pct(sum(fin, x => x.gp_plan), sum(fin, x => x.revised))}）` : '') }; })
+    .sort((a, b) => b.v - a.v);
+}
+function renderBreakdowns(){
+  const ks = inTerm();
+  $('note-type').textContent = `${term}の変更契約額（百万円）と件数。`;
+  $('note-kind').textContent = `${term}の変更契約額（百万円）と件数。`;
+  hbars('by-type', group(ks, k => k.type), g => `${man(g.v)}<span class="muted">（${g.n}件）</span>`);
+  hbars('by-kind', group(ks, k => k.kind), g => `${man(g.v)}<span class="muted">（${g.n}件）</span>`);
+  const order = ['施工中', '精算中', '見積中', '完了', '（空欄）'];
+  hbars('by-status', group(ks, k => k.status).sort((a, b) => order.indexOf(a.k) - order.indexOf(b.k)), g => `${man(g.v)}<span class="muted">（${g.n}件）</span>`);
+  hbars('by-manager', group(ks.filter(k => k.status === '施工中' || k.status === '精算中'), k => k.manager), g => `${man(g.v)}<span class="muted">（${g.n}件）</span>`);
+}
+
+// ---------- 現場別の人工・労務費 ----------
+function renderLabor(){
+  const rows0 = (DATA.labor || []).filter(l => l.ym === ym);
+  const by = {};
+  rows0.forEach(l => { const r = by[l.code] = by[l.code] || { code: l.code, site: l.site, days: 0, sal: 0, wel: 0, people: new Set(), nosal: 0 };
+    r.days += +l.days; r.sal += +(l.salary_amt || 0); r.wel += +(l.welfare_amt || 0); r.people.add(l.emp); if (!l.has_salary) r.nosal++; });
+  const kByCode = {};
+  KOJI.forEach(k => { if (k.no) kByCode[k.no] = k; });
+  let rows = Object.values(by).map(r => { const k = kByCode[r.code] || {}; return { ...r, cost: r.sal + r.wel, revised: k.revised ?? null, labor_k: k.labor ?? null, status: k.status || '', people: [...r.people] }; });
+  const s = sortLabor; rows.sort((a, b) => cmp(a[s.key], b[s.key]) * s.dir);
+  const tot = { days: sum(rows, r => r.days), sal: sum(rows, r => r.sal), wel: sum(rows, r => r.wel) };
+  const mInfo = (DATA.labor_months || []).find(m => m.ym === ym);
+  $('labor-sum').textContent = mInfo ? `給与 ${Math.round(mInfo.salary).toLocaleString()} 円・法定福利費 ${Math.round(mInfo.welfare).toLocaleString()} 円（${mInfo.people} 名）／ 振替合計 ${Math.round(tot.sal).toLocaleString()} 円・${Math.round(tot.wel).toLocaleString()} 円`
+    : 'この月の給与・法定福利費が未登録のため、金額は表示されません（人工のみ）';
+  const maxCost = Math.max(1, ...rows.map(r => r.cost));
+  const cols = [['code', '現場コード'], ['site', '現場名'], ['status', 'kintone 状況'], ['days', '人工（日）', 1], ['sal', '労務費', 1], ['wel', '法定福利費', 1], ['cost', '合計', 1], ['revised', '変更契約額', 1], ['labor_k', 'kintone 人件費', 1], ['people', '担当']];
+  $('labor-tbl').innerHTML = `<thead><tr>${cols.map(([k, l, num]) => `<th class="${num ? 'num' : ''}" data-k="${k}">${l}${s.key === k ? (s.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead><tbody>${
+    rows.map(r => `<tr><td>${esc(r.code)}</td><td>${esc(r.site || '')}</td><td>${r.status ? `<span class="badge">${esc(r.status)}</span>` : ''}</td>
+      <td class="num">${r.days.toFixed(1)}</td><td class="num">${yen(r.sal)}</td><td class="num">${yen(r.wel)}</td>
+      <td class="num">${yen(r.cost)}<span class="minibar" style="width:${r.cost / maxCost * 60}px"></span></td>
+      <td class="num">${yen(r.revised)}</td><td class="num">${yen(r.labor_k)}</td><td class="muted">${esc(r.people.join('、'))}</td></tr>`).join('')
+    || '<tr><td colspan="10" class="muted">この月の予定データがありません</td></tr>'
+  }</tbody><tfoot><tr><td colspan="3">合計（${rows.length} 現場コード）</td><td class="num">${tot.days.toFixed(1)}</td><td class="num">${yen(tot.sal)}</td><td class="num">${yen(tot.wel)}</td><td class="num">${yen(tot.sal + tot.wel)}</td><td></td><td></td><td></td></tr></tfoot>`;
+  $('labor-tbl').querySelectorAll('th').forEach(th => th.addEventListener('click', () => {
+    const k = th.dataset.k; sortLabor = { key: k, dir: sortLabor.key === k ? -sortLabor.dir : (['code', 'site', 'status'].includes(k) ? 1 : -1) }; renderLabor(); }));
+}
+function cmp(a, b){ if (a == null && b == null) return 0; if (a == null) return 1; if (b == null) return -1; return typeof a === 'number' ? a - b : String(a).localeCompare(String(b), 'ja'); }
+
+// ---------- 工事一覧 ----------
+function renderKoji(){
+  const q = $('q').value.trim().toLowerCase(), fs = $('f-status').value, ft = $('f-type').value;
+  let ks = inTerm().filter(k => (!fs || (k.status || '（空欄）') === fs) && (!ft || (k.type || '（空欄）') === ft)
+    && (!q || [k.no, k.name, k.official, k.manager, k.client, k.site].join(' ').toLowerCase().includes(q)));
+  ks = ks.map(k => ({ ...k, rate: (k.gp_plan != null && k.revised) ? k.gp_plan / k.revised : null }));
+  const s = sortKoji; ks.sort((a, b) => cmp(a[s.key], b[s.key]) * s.dir);
+  const cols = [['no', '工事番号'], ['name', '工事名'], ['type', '受注形態'], ['status', '状況'], ['manager', '代理人'], ['client', '元請業者／施主'],
+    ['end', '工期（至）'], ['revised', '変更契約額', 1], ['gp_plan', '予想粗利', 1], ['rate', '粗利率', 1], ['gp_final', '最終粗利', 1], ['billed', '請求済', 1], ['unbilled', '未請求', 1]];
+  $('koji-tbl').innerHTML = `<thead><tr>${cols.map(([k, l, num]) => `<th class="${num ? 'num' : ''}" data-k="${k}">${l}${s.key === k ? (s.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead><tbody>${
+    ks.map(k => `<tr><td>${esc(k.no || '—')}</td><td title="${esc(k.official || '')}"><a href="${esc(k.url)}" target="_blank" rel="noopener">${esc(k.name || '（名称なし）')}</a></td>
+      <td>${esc(k.type || '')}</td><td>${k.status ? `<span class="badge">${esc(k.status)}</span>` : ''}</td><td>${esc(k.manager || '')}</td><td>${esc(k.client || '')}</td>
+      <td class="muted">${esc(k.end || '')}</td><td class="num">${yen(k.revised)}</td><td class="num">${yen(k.gp_plan)}</td>
+      <td class="num">${k.rate == null ? '<span class="muted">—</span>' : (k.rate * 100).toFixed(1) + '%'}</td><td class="num">${yen(k.gp_final)}</td>
+      <td class="num">${yen(k.billed)}</td><td class="num">${yen(k.unbilled)}</td></tr>`).join('') || '<tr><td colspan="13" class="muted">該当する工事はありません</td></tr>'
+  }</tbody><tfoot><tr><td colspan="7">合計（${ks.length} 件）</td><td class="num">${yen(sum(ks, k => k.revised))}</td><td class="num">${yen(sum(ks, k => k.gp_plan))}</td>
+    <td class="num">${pct(sum(ks.filter(k => k.gp_plan != null), k => k.gp_plan), sum(ks.filter(k => k.gp_plan != null), k => k.revised))}</td>
+    <td class="num">${yen(sum(ks, k => k.gp_final))}</td><td class="num">${yen(sum(ks, k => k.billed))}</td><td class="num">${yen(sum(ks, k => k.unbilled))}</td></tr></tfoot>`;
+  $('koji-tbl').querySelectorAll('th').forEach(th => th.addEventListener('click', () => {
+    const k = th.dataset.k; sortKoji = { key: k, dir: sortKoji.key === k ? -sortKoji.dir : (['no', 'name', 'type', 'status', 'manager', 'client', 'end'].includes(k) ? 1 : -1) }; renderKoji(); }));
+}
+
+// ---------- 起動（タブ内で入力済みのキーがあれば自動で表示） ----------
+(async () => {
+  const key = safeGet(KEY_STORE);
+  if (!key) return;
+  try { DATA = await load(key); start(); } catch (e) { safeSet(KEY_STORE, null); }
+})();
+</script>
+</body>
+</html>
