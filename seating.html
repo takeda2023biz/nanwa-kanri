@@ -610,9 +610,10 @@ function prepareSchedule(rows,col,fname){
     for(const nm of names){const k=nameKey(nm),p=!dup.has(k)&&byKey[k];
       if(!p){otherNames.add(nm);continue;}
       people.add(p.id);
-      out.push({id:`${(r[iId]||"").trim()||sd+toHM(r[iSt])+kind}:${p.id}`,employee_id:p.id,start_date:sd,start_time:toHM(r[iSt]),end_date:ed,end_time:toHM(r[iEt]),kind,title:(iT>=0?r[iT]:"").trim().slice(0,100)});}
+      out.push({id:`${(r[iId]||"").trim()||kind}:${sd}:${toHM(r[iSt])}:${p.id}`,employee_id:p.id,start_date:sd,start_time:toHM(r[iSt]),end_date:ed,end_time:toHM(r[iEt]),kind,title:(iT>=0?r[iT]:"").trim().slice(0,100)});}
   }
-  IMPORT_SCH={file:fname,total:rows.length,rows:out,people:people.size,other:otherNames.size,todo,from,to,dup:[...dup]};
+  const uniq=[...new Map(out.map(x=>[x.id,x])).values()];  // 繰り返し予定・重複行をまとめる
+  IMPORT_SCH={file:fname,total:rows.length,rows:uniq,people:people.size,other:otherNames.size,todo,from,to,dup:[...dup]};
   openSheet("importSch",null);
 }
 function sheetImportSch(){
