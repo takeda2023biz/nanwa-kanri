@@ -273,6 +273,8 @@ tbody td{padding:9px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellip
         </div>
         <div class="form-row"><label>入社日</label><input id="ef-join" type="date"/></div>
         <div class="form-row"><label>生年月日</label><input id="ef-bd" type="date"/></div>
+        <div class="form-row"><label>退職日（最終出勤日）</label><input id="ef-leave" type="date"/></div>
+        <div class="form-row" style="align-self:end;font-size:11px;color:#888">退職日の翌日から、ログイン・座席表・一覧の対象外になります</div>
         <div class="form-section">連絡先</div>
         <div class="form-row full"><label>メールアドレス</label><input id="ef-email" placeholder="yamada@k-nanwa.co.jp"/></div>
         <div class="form-row"><label>内線番号</label><input id="ef-ext" placeholder="1234"/></div>
@@ -552,6 +554,7 @@ const ALC = (() => {
     INSTRUCTION_REQUIRED: '酒気帯び「有」の場合は指示事項を入力してください。',
     BAD_CONFIRMER: '確認者は管理担当者から選んでください。',
     CANNOT_REMOVE_SELF: '自分自身は削除できません。',
+    RETIRED: '退職日を過ぎた社員は対象にできません。',
   };
   function errText(e){
     const m = (e && (e.message || e.details)) || String(e);
@@ -606,7 +609,7 @@ const ALC = (() => {
         S.masters = await api('alc_admin_masters');
         loadHolidays();
       } catch (e) { root.innerHTML = `<div class="alc-warn">${esc(errText(e))}</div>`; S.me = null; return; }
-      $('alc-emp-list').innerHTML = S.masters.employees.map(e => `<option value="${esc(e.name)}">${esc(e.honbu || '')}</option>`).join('');
+      $('alc-emp-list').innerHTML = S.masters.employees.filter(e => !e.retired).map(e => `<option value="${esc(e.name)}">${esc(e.honbu || '')}</option>`).join('');
       $('alc-sm-honbu').innerHTML = '<option value="">全社</option>' + HONBU_LIST.map(h => `<option>${h}</option>`).join('');
       TG.honbu = S.me.honbu || '';
       document.querySelectorAll('#alc-cm-leg button, #alc-cm-det button').forEach(b => b.addEventListener('click', () => {
@@ -653,6 +656,7 @@ const ALC = (() => {
       if (s >= t || isOff(s)) continue;                 // 今日以降・土日祝は数えない
       if (r.started_on && s < r.started_on) continue;   // 対象になる前は数えない
       if (r.ended_on && s > r.ended_on) continue;
+      if (r.leave_date && s > r.leave_date) continue;   // 退職日の翌日以降は数えない
       const legs = r.days.filter(x => x.d === s).length;
       if (legs === 0) noRec++; else if (legs === 1) oneWay++;
     }
@@ -687,7 +691,7 @@ const ALC = (() => {
         <tbody>${st.map(({ r, s }) => {
           const mo = r.monthly || {};
           return `<tr class="alc-click ${s.det ? 'alc-alert' : ''} ${r.status === 'active' ? '' : 'alc-dim'}" onclick="ALC.openRec('${r.employee_id}')">
-            <td><b>${esc(r.name)}</b>${r.status !== 'active' ? ' <span class="badge b-gray">対象外</span>' : r.has_pin ? '' : ' <span class="badge b-amber">暗証番号未発行</span>'}</td>
+            <td><b>${esc(r.name)}</b>${retBadge(r)}${r.status !== 'active' ? ' <span class="badge b-gray">対象外</span>' : r.has_pin ? '' : ' <span class="badge b-amber">暗証番号未発行</span>'}</td>
             <td>${hbBadge(r.honbu)}</td><td>${esc(r.vehicle_label || '')}</td><td class="num">${s.cnt}</td>
             <td>${s.noRec ? `<span class="badge b-amber">${s.noRec}日</span>` : '<span class="alc-muted">0</span>'}</td>
             <td>${s.oneWay ? `<span class="badge b-amber">${s.oneWay}日</span>` : '<span class="alc-muted">0</span>'}</td>
@@ -701,6 +705,7 @@ const ALC = (() => {
       <div class="alc-hint">「記録なし（平日）」は、対象になった日以降の土日祝を除いた昨日までの日で、往路・復路とも記録がない日数です（運転しなかった日も含みます）。</div>`;
     const q = $('alc-ov-q'); if (q && S.q && S._focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
   }
+  const retBadge = e => e && e.retired ? ` <span class="badge b-gray" title="退職日 ${esc(e.leave_date || '')}">退職${e.leave_date ? ' ' + md(e.leave_date) : ''}</span>` : '';
   function hbBadge(h){ return typeof window.hbBadge === 'function' ? window.hbBadge(h) : `<span class="badge b-gray">${esc(h || '—')}</span>`; }
   function setFilter(k, v){ S[k] = v; S._focusQ = k === 'q'; ovRender(); S._focusQ = false; }
   function openRec(emp){ REC.emp = emp; REC.y = S.y; REC.m = S.m; sub('record'); }
@@ -829,10 +834,12 @@ const ALC = (() => {
   // =====================================================================
   function tgReset(){
     TG.base = new Set(S.overview.filter(r => r.status === 'active').map(r => r.employee_id));
-    TG.sel = new Set(S.overview.filter(r => r.status === 'active' || r.status === 'pending').map(r => r.employee_id));
+    TG.sel = new Set(S.overview.filter(r => r.status === 'active' || (r.status === 'pending' && !r.retired)).map(r => r.employee_id));
   }
   const tgDrv = id => S.overview.find(r => r.employee_id === id);
-  const tgInScope = e => (!S.me.honbu || e.honbu === S.me.honbu) && (!TG.honbu || e.honbu === TG.honbu);
+  // 退職者は出さない（ただし対象・選択済みのまま退職した人は、外せるように表示する）
+  const tgInScope = e => (!S.me.honbu || e.honbu === S.me.honbu) && (!TG.honbu || e.honbu === TG.honbu)
+    && (!e.retired || ['active','pending'].includes((tgDrv(e.id) || {}).status));
   function tgDiff(){
     const emps = S.masters.employees.filter(tgInScope);
     const add = [], remove = [], pendingKeep = [];
@@ -860,7 +867,7 @@ const ALC = (() => {
       <div class="alc-card" style="margin-bottom:10px">
         <div class="alc-card-title">アルコールチェックの対象者を社員マスタから選びます</div>
         <div style="font-size:13px;line-height:1.7">チェックを付け外ししてから<b>「確定する」</b>を押すと反映されます。確定した人にはログインIDが自動で付き、「運転者設定」で暗証番号を発行するとスマホから入力できるようになります。<br>
-        外した人は「対象外」になり、それまでの記録は残ります（あとで再び対象にできます）。</div></div>
+        外した人は「対象外」になり、それまでの記録は残ります（あとで再び対象にできます）。退職日を過ぎた社員は一覧に出ません。</div></div>
       <div class="alc-tg-bar">
         <div class="controls" style="margin-bottom:8px">
           <select onchange="ALC.tgSet('honbu',this.value)" ${fixed ? 'disabled' : ''}>${fixed ? `<option>${esc(S.me.honbu)}</option>` : `<option value="">全事業本部</option>${honbus.map(h => `<option ${h === TG.honbu ? 'selected' : ''}>${h}</option>`).join('')}`}</select>
@@ -881,7 +888,7 @@ const ALC = (() => {
         ${es.map(e => { const d = tgDrv(e.id), onx = TG.sel.has(e.id), chg = onx !== (d ? d.status === 'active' : false);
           return `<tr class="alc-click ${onx ? 'alc-tg-on' : ''} ${chg ? 'alc-tg-chg' : ''}" onclick="ALC.tgToggle('${e.id}')">
             <td><input type="checkbox" class="alc-cb" ${onx ? 'checked' : ''} onclick="event.stopPropagation();ALC.tgToggle('${e.id}')"></td>
-            <td><b>${esc(e.name)}</b></td><td>${esc(e.dept || '')}</td><td>${esc((e.role || '').replace(/\n/g, ' '))}</td>
+            <td><b>${esc(e.name)}</b>${retBadge(e)}</td><td>${esc(e.dept || '')}</td><td>${esc((e.role || '').replace(/\n/g, ' '))}</td>
             <td>${stBadge(d)}${chg ? (onx ? ' <span class="badge b-green">→ 追加</span>' : ' <span class="badge b-red">→ 外す</span>') : ''}</td>
             <td class="mono">${esc(d && d.login_code || '')}</td></tr>`; }).join('')}
         </tbody></table></div>`;
@@ -889,9 +896,9 @@ const ALC = (() => {
     const q = $('alc-tg-q'); if (q && TG._focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
   }
   function tgSet(k, v){ TG[k] = v; TG._focusQ = k === 'q'; tgRender(); TG._focusQ = false; }
-  function tgToggle(id){ TG.sel.has(id) ? TG.sel.delete(id) : TG.sel.add(id); const y = window.scrollY; tgRender(); window.scrollTo(0, y); }
-  function tgAll(h, on){ S.masters.employees.filter(e => (e.honbu || '（未設定）') === h && tgInScope(e)).forEach(e => on ? TG.sel.add(e.id) : TG.sel.delete(e.id)); const y = window.scrollY; tgRender(); window.scrollTo(0, y); }
-  function tgUndo(){ TG.sel = new Set(TG.base); S.overview.filter(r => r.status === 'pending').forEach(r => TG.sel.add(r.employee_id)); tgRender(); }
+  function tgToggle(id){ const e = S.masters.employees.find(x => x.id === id); if (e && e.retired && !TG.sel.has(id)) { msg(ERR.RETIRED); return; } TG.sel.has(id) ? TG.sel.delete(id) : TG.sel.add(id); const y = window.scrollY; tgRender(); window.scrollTo(0, y); }
+  function tgAll(h, on){ S.masters.employees.filter(e => (e.honbu || '（未設定）') === h && tgInScope(e) && !(on && e.retired)).forEach(e => on ? TG.sel.add(e.id) : TG.sel.delete(e.id)); const y = window.scrollY; tgRender(); window.scrollTo(0, y); }
+  function tgUndo(){ TG.sel = new Set(TG.base); S.overview.filter(r => r.status === 'pending' && !r.retired).forEach(r => TG.sel.add(r.employee_id)); tgRender(); }
   function tgConfirm(){
     const df = tgDiff();
     const names = arr => `<div class="alc-names">${arr.map(e => `<span class="badge b-gray">${esc(e.name)}</span>`).join('')}</div>`;
@@ -940,7 +947,7 @@ const ALC = (() => {
         ${canMgr ? `<button class="btn btn-primary" ${nChecked ? '' : 'disabled'} onclick="ALC.issuePins()">チェックした${nChecked}名の暗証番号を発行</button>` : ''}</div>
       <div class="tbl-wrap"><table><thead><tr>${canMgr ? `<th style="width:36px"><input type="checkbox" class="alc-cb" onchange="ALC.drvAll(this.checked)" ${list.length && nChecked === list.length ? 'checked' : ''}></th>` : ''}<th>氏名</th><th>事業本部</th><th>ログインID</th><th>車番</th><th>暗証番号</th><th>対象開始</th><th></th></tr></thead>
       <tbody>${list.map(r => `<tr>${canMgr ? `<td><input type="checkbox" class="alc-cb" data-id="${r.employee_id}" ${DRV.checked.has(r.employee_id) ? 'checked' : ''} onchange="ALC.drvCheck('${r.employee_id}',this.checked)"></td>` : ''}
-        <td><b>${esc(r.name)}</b></td><td>${hbBadge(r.honbu)}</td><td class="mono" style="font-size:13px">${esc(r.login_code || '')}</td><td>${esc(r.vehicle_label || '')}</td>
+        <td><b>${esc(r.name)}</b>${retBadge(r)}</td><td>${hbBadge(r.honbu)}</td><td class="mono" style="font-size:13px">${esc(r.login_code || '')}</td><td>${esc(r.vehicle_label || '')}</td>
         <td>${r.locked ? '<span class="badge b-red">ロック中</span>' : r.has_pin ? '<span class="badge b-green">発行済み</span>' : '<span class="badge b-amber">未発行</span>'}</td>
         <td>${r.started_on ? md(r.started_on) : ''}</td>
         <td><button class="btn btn-sm" onclick="ALC.openDriver('${r.employee_id}')">編集</button></td></tr>`).join('') || `<tr><td colspan="8" class="alc-muted" style="padding:20px">該当する対象者がいません。</td></tr>`}</tbody></table></div>
@@ -1154,7 +1161,12 @@ function showLogin(msg){
 
 async function afterLogin(session){
   const email=session.user.email;
-  const {data:emp,error}=await sb.from('employees').select('name,email,system_role').eq('email',email).maybeSingle();
+  const {data:emp,error}=await sb.from('employees').select('name,email,system_role,leave_date').eq('email',email).maybeSingle();
+  if(!error&&emp&&isRetired(emp)){
+    await sb.auth.signOut();
+    showLogin('このアカウントは退職済みのため利用できません。');
+    return;
+  }
   if(error||!emp){
     await sb.auth.signOut();
     showLogin('このアカウントは社員情報に登録されていません。管理本部にご連絡ください。');
@@ -1226,6 +1238,10 @@ async function setPasswordSubmit(){
 }
 
 const TODAY=new Date();
+// 退職：退職日（最終出勤日）を過ぎたら対象外
+const TODAY_STR=`${TODAY.getFullYear()}-${String(TODAY.getMonth()+1).padStart(2,'0')}-${String(TODAY.getDate()).padStart(2,'0')}`;
+const isRetired=e=>!!(e&&e.leave_date&&e.leave_date<TODAY_STR);
+const activeEmployees=()=>EMPLOYEES.filter(e=>!isRetired(e));
 document.getElementById('today-label').textContent=
   TODAY.getFullYear()+'年'+(TODAY.getMonth()+1)+'月'+TODAY.getDate()+'日 現在';
 
@@ -1346,7 +1362,7 @@ async function loadAll(){
 function renderEmployeeDatalist(){
   const dl=document.getElementById('employee-names-list');
   if(!dl) return;
-  const names=[...new Set(EMPLOYEES.map(e=>e.name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
+  const names=[...new Set(activeEmployees().map(e=>e.name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
   dl.innerHTML=names.map(n=>`<option value="${n}"></option>`).join('');
 }
 
@@ -1370,12 +1386,12 @@ function renderDashboard(){
   const warn=[...DEVICES.filter(d=>leaseStatus(d.end_date,d.lease_type)==='warn'),...activeVeh.filter(v=>vehStatus(v)==='warn')];
   const totalM=DEVICES.reduce((s,d)=>s+(parseInt(d.monthly)||0),0);
   const hbCnt={};
-  EMPLOYEES.forEach(e=>{hbCnt[e.honbu]=(hbCnt[e.honbu]||0)+1;});
+  activeEmployees().forEach(e=>{hbCnt[e.honbu]=(hbCnt[e.honbu]||0)+1;});
   const alertDate=x=>x.end_date!==undefined?x.end_date:vehCritical(x).date;
   const alerts=[...danger,...warn].sort((a,b)=>new Date(alertDate(a)||'9999')-new Date(alertDate(b)||'9999')).slice(0,10);
   document.getElementById('page-dashboard').innerHTML=`
     <div class="stats" style="grid-template-columns:repeat(6,1fr)">
-      <div class="stat"><div class="stat-label">社員数</div><div class="stat-value">${EMPLOYEES.length}</div><div class="stat-sub">6事業本部</div></div>
+      <div class="stat"><div class="stat-label">社員数</div><div class="stat-value">${activeEmployees().length}</div><div class="stat-sub">6事業本部</div></div>
       <div class="stat"><div class="stat-label">管理機器数</div><div class="stat-value">${DEVICES.length}</div><div class="stat-sub">リース・レンタル・携帯・Wi-Fi</div></div>
       <div class="stat"><div class="stat-label">車両台数</div><div class="stat-value">${activeVeh.length}</div><div class="stat-sub">使用中（返却済除く）</div></div>
       <div class="stat"><div class="stat-label">月額合計（税抜）</div><div class="stat-value">${Math.round(totalM/1000)}千円</div><div class="stat-sub">${totalM.toLocaleString()}円</div></div>
@@ -1388,7 +1404,7 @@ function renderDashboard(){
         ${Object.entries(hbCnt).map(([h,n])=>`
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
             ${hbBadge(h)}<div style="flex:1;font-size:12px;color:#888">${n}名</div>
-            <div class="exp-bar" style="width:100px"><div class="exp-fill" style="width:${Math.round(n/EMPLOYEES.length*100)}%;background:#378ADD"></div></div>
+            <div class="exp-bar" style="width:100px"><div class="exp-fill" style="width:${Math.round(n/Math.max(1,activeEmployees().length)*100)}%;background:#378ADD"></div></div>
           </div>`).join('')}
       </div>
       <div style="background:#fff;border:1px solid #e8e7e0;border-radius:10px;padding:16px 18px;">
@@ -1431,12 +1447,12 @@ function renderDashboard(){
 }
 
 // ── 社員管理 ──
-let empQ='',empHonbu='',empEditId=null,empPage=1;
+let empQ='',empHonbu='',empEditId=null,empPage=1,empShowRetired=false;
 const EMP_PER=20;
 function renderEmployees(){
   const filtered=EMPLOYEES.filter(e=>{
     const mq=!empQ||e.name.includes(empQ)||(e.yomi||'').includes(empQ)||(e.role||'').includes(empQ)||(e.dept||'').includes(empQ);
-    return mq&&(!empHonbu||e.honbu===empHonbu);
+    return mq&&(!empHonbu||e.honbu===empHonbu)&&(empShowRetired||!isRetired(e));
   });
   const pages=Math.max(1,Math.ceil(filtered.length/EMP_PER));
   if(empPage>pages)empPage=pages;
@@ -1454,6 +1470,7 @@ function renderEmployees(){
         <option value="">全事業本部</option>
         ${honbus.map(h=>`<option value="${h}"${empHonbu===h?' selected':''}>${h}</option>`).join('')}
       </select>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#555;white-space:nowrap"><input type="checkbox" style="width:14px;height:14px;min-width:0;flex:none;padding:0;margin:0" ${empShowRetired?'checked':''} onchange="empShowRetired=this.checked;empPage=1;renderEmployees()">退職者も表示（${EMPLOYEES.filter(isRetired).length}名）</label>
     </div>
     <div class="tbl-wrap">
       <table>
@@ -1465,9 +1482,10 @@ function renderEmployees(){
         <tbody>${slice.map(e=>{
           const devs=getDevForEmp(e.name);
           const ac=avColor(e.name);
-          return `<tr>
+          const ret=isRetired(e),soon=!ret&&e.leave_date;
+          return `<tr${ret?' style="opacity:.55"':''}>
             <td><div class="avatar" style="background:${ac.bg};color:${ac.fg}">${initials(e.name)}</div></td>
-            <td style="font-weight:600">${e.name}</td>
+            <td style="font-weight:600">${e.name}${ret?` <span class="badge b-gray" title="退職日 ${e.leave_date}">退職</span>`:soon?` <span class="badge b-amber" title="退職日 ${e.leave_date}">${e.leave_date.slice(5).replace('-','/')} 退職予定</span>`:''}</td>
             <td class="mono">${e.yomi||''}</td>
             <td>${hbBadge(e.honbu)}</td>
             <td style="font-size:11px;color:#666">${e.dept||'—'}</td>
@@ -1513,6 +1531,7 @@ function showEmpDetail(id){
         <div><div style="font-size:11px;color:#888">性別</div><div style="font-size:13px;font-weight:600">${e.gender||'—'}</div></div>
         <div><div style="font-size:11px;color:#888">入社日</div><div style="font-size:13px;font-weight:600">${e.join_date||'—'}</div></div>
         <div><div style="font-size:11px;color:#888">生年月日</div><div style="font-size:13px;font-weight:600">${e.birthday||'—'}</div></div>
+        ${e.leave_date?`<div><div style="font-size:11px;color:#888">退職日</div><div style="font-size:13px;font-weight:600;color:#a32d2d">${e.leave_date}</div></div>`:''}
         ${e.email?`<div style="grid-column:1/-1"><div style="font-size:11px;color:#888">メールアドレス</div><div style="font-size:13px;font-weight:600;font-family:monospace">${e.email}</div></div>`:''}
         ${(e.phone_ext||e.phone_direct)?`
         <div><div style="font-size:11px;color:#888">内線番号</div><div style="font-size:13px;font-weight:600">${e.phone_ext||'—'}</div></div>
@@ -1551,8 +1570,9 @@ function openEmpModal(id){
     document.getElementById('ef-ext').value=e.phone_ext||'';
     document.getElementById('ef-direct').value=e.phone_direct||'';
     document.getElementById('ef-note').value=e.note||'';
+    document.getElementById('ef-leave').value=e.leave_date||'';
   } else {
-    ['ef-name','ef-yomi','ef-dept','ef-role','ef-join','ef-bd','ef-email','ef-ext','ef-direct','ef-note'].forEach(i=>document.getElementById(i).value='');
+    ['ef-name','ef-yomi','ef-dept','ef-role','ef-join','ef-bd','ef-email','ef-ext','ef-direct','ef-note','ef-leave'].forEach(i=>document.getElementById(i).value='');
     document.getElementById('ef-honbu').selectedIndex=0;
     document.getElementById('ef-gender').selectedIndex=0;
   }
@@ -1570,7 +1590,8 @@ async function saveEmployee(){
     email:document.getElementById('ef-email').value.trim()||null,
     phone_ext:document.getElementById('ef-ext').value.trim()||null,
     phone_direct:document.getElementById('ef-direct').value.trim()||null,
-    note:document.getElementById('ef-note').value.trim()||null,updated_at:new Date().toISOString()};
+    note:document.getElementById('ef-note').value.trim()||null,
+    leave_date:document.getElementById('ef-leave').value||null,updated_at:new Date().toISOString()};
   let err;
   if(empEditId){({error:err}=await sb.from('employees').update(d).eq('id',empEditId));}
   else{({error:err}=await sb.from('employees').insert(d));}
@@ -2072,6 +2093,25 @@ function renderAlerts(){
   const warn=[...DEVICES.filter(d=>leaseStatus(d.end_date,d.lease_type)==='warn'),...activeVeh.filter(v=>vehStatus(v)==='warn')]
     .sort((a,b)=>new Date((a.end_date!==undefined?a.end_date:vehCritical(a).date))-new Date((b.end_date!==undefined?b.end_date:vehCritical(b).date)));
   const okCount=DEVICES.filter(d=>leaseStatus(d.end_date,d.lease_type)==='ok').length+activeVeh.filter(v=>vehStatus(v)==='ok').length;
+  // 退職者に割り当てたままの機器・車両（返却・保管の確認用）
+  const norm=s=>(s||'').replace(/[\s　]/g,'');
+  const retired=EMPLOYEES.filter(isRetired);
+  const retItems=[];
+  for(const e of retired){
+    for(const d of getDevForEmp(e.name).filter(d=>!/保管/.test(d.note||'')))retItems.push({e,label:d.name,sub:`${d.type}${d.category?'・'+d.category:''}${d.phone?'・'+d.phone:''}`,no:d.contract_no||''});
+    for(const v of activeVeh.filter(v=>norm(v.assignee)&&norm(v.assignee)===norm(e.name)))retItems.push({e,label:v.model||v.maker||'車両',sub:'車両',no:vehPlateStr(v)});
+  }
+  const retList=`
+    <div class="section-title" style="color:#5F5E5A">退職者の機器・車両 — 返却・保管の確認（${retItems.length}件）</div>
+    ${retItems.length?retItems.map(x=>`<div class="alert-item">
+      <div class="alert-dot" style="background:#888780"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600">${x.label}</div>
+        <div style="font-size:11px;color:#888;margin-top:3px"><span class="badge b-gray">${x.sub}</span>&nbsp;${x.no||'—'}&nbsp;/&nbsp;担当：${x.e.name}（${x.e.leave_date} 退職）</div>
+      </div>
+      <button class="btn" style="height:28px;padding:0 10px;font-size:11px;flex-shrink:0" onclick="showPage('devices',document.getElementById('nav-devices'))">機器管理へ</button>
+    </div>`).join(''):`<div style="font-size:12px;color:#aaa;padding:10px 0">該当なし</div>`}
+    <div style="font-size:11px;color:#aaa;margin:-4px 0 18px">返却済みの機器は機器管理で担当者を外してください。しばらく保管する機器は、備考に「保管」と書くとこの一覧から外れます。</div>`;
   const makeList=(items,color,title)=>`
     <div class="section-title" style="color:${color}">${title}（${items.length}件）</div>
     ${items.length?items.map(x=>{
@@ -2097,13 +2137,15 @@ function renderAlerts(){
     }).join(''):`<div style="font-size:12px;color:#aaa;padding:10px 0">該当なし</div>`}`;
   document.getElementById('page-alerts').innerHTML=`
     <div style="font-size:20px;font-weight:700;margin-bottom:14px">期限アラート</div>
-    <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+    <div class="stats" style="grid-template-columns:repeat(4,1fr)">
       <div class="stat"><div class="stat-label" style="color:#a32d2d">期限切れ</div><div class="stat-value" style="color:#a32d2d">${danger.length}件</div><div class="stat-sub">要対応（機器＋車両）</div></div>
       <div class="stat"><div class="stat-label" style="color:#854f0b">6ヶ月以内満了</div><div class="stat-value" style="color:#854f0b">${warn.length}件</div><div class="stat-sub">更新要検討（機器＋車両）</div></div>
       <div class="stat"><div class="stat-label">問題なし</div><div class="stat-value">${okCount}件</div></div>
+      <div class="stat"><div class="stat-label" style="color:#5F5E5A">退職者の機器・車両</div><div class="stat-value" style="color:#5F5E5A">${retItems.length}件</div><div class="stat-sub">返却・保管の確認</div></div>
     </div>
     ${makeList(danger,'#E24B4A','期限切れ — 要対応')}
     ${makeList(warn,'#BA7517','6ヶ月以内に満了')}
+    ${retList}
   `;
 }
 
