@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>アルコールチェック</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:14px;background:#f5f5f3;color:#1a1a1a;min-height:100vh;}
+button,input,select,textarea{font-family:inherit;}
+.topbar{background:#fff;border-bottom:1px solid #e0dfd8;padding:0 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:52px;position:sticky;top:0;z-index:100;}
+.topbar-title{font-size:16px;font-weight:600;}
+.topbar-sub{font-size:11px;color:#888;margin-top:2px;}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+.user-chip{font-size:12px;color:#555;background:#f1efe8;padding:4px 10px;border-radius:20px;white-space:nowrap;}
+.demo-chip{font-size:11px;background:#FAEEDA;color:#633806;padding:3px 10px;border-radius:20px;font-weight:600;}
+.nav{background:#fff;border-bottom:1px solid #e0dfd8;padding:0 20px;display:flex;position:sticky;top:52px;z-index:99;overflow-x:auto;}
+.nav-btn{padding:12px 18px;font-size:13px;color:#666;cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;white-space:nowrap;}
+.nav-btn.active{color:#1a1a1a;font-weight:600;border-bottom:2px solid #1a1a1a;}
+.nav-btn:hover:not(.active){color:#1a1a1a;background:#f9f9f7;}
+.main{padding:20px;max-width:1300px;margin:0 auto;}
+.page{display:none;}.page.active{display:block;}
+.page-title{font-size:20px;font-weight:700;margin-bottom:14px;}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+.b-blue{background:#E6F1FB;color:#0C447C;}.b-green{background:#EAF3DE;color:#27500A;}
+.b-amber{background:#FAEEDA;color:#633806;}.b-red{background:#FCEBEB;color:#791F1F;}.b-gray{background:#F1EFE8;color:#5F5E5A;}
+.controls{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+.controls input,.controls select{height:36px;padding:0 12px;border-radius:8px;border:1px solid #d8d7d0;background:#fff;font-size:13px;}
+.btn{height:36px;padding:0 16px;border-radius:8px;border:1px solid #d8d7d0;background:#fff;color:#1a1a1a;font-size:13px;cursor:pointer;font-weight:500;white-space:nowrap;}
+.btn:hover{background:#f5f5f3;}.btn:disabled{opacity:.45;cursor:default;}
+.btn-primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}.btn-primary:hover{background:#333;}
+.btn-danger{background:#FCEBEB;color:#791F1F;border-color:#F09595;}
+.btn-sm{height:28px;padding:0 10px;font-size:12px;border-radius:6px;}
+.btn-block{width:100%;height:48px;font-size:15px;}
+.month-label{font-weight:700;font-size:15px;min-width:110px;text-align:center;}
+.spacer{flex:1;}
+.card{background:#fff;border:1px solid #e8e7e0;border-radius:12px;padding:16px;margin-bottom:14px;}
+.card-title{font-size:14px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px;}
+.stat{background:#fff;border:1px solid #e8e7e0;border-radius:10px;padding:12px 14px;}
+.stat-label{font-size:11px;color:#888;}.stat-value{font-size:22px;font-weight:700;margin-top:2px;}
+.tbl-wrap{border:1px solid #e8e7e0;border-radius:10px;overflow:auto;background:#fff;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{background:#f9f9f7;padding:9px 10px;text-align:left;font-weight:600;font-size:11px;color:#666;border-bottom:1px solid #e8e7e0;white-space:nowrap;position:sticky;top:0;z-index:1;}
+tbody tr{border-bottom:1px solid #eeede8;}
+tbody td{padding:7px 10px;vertical-align:middle;}
+tbody tr.clickable{cursor:pointer;}tbody tr.clickable:hover{background:#fafaf8;}
+tr.day-start{border-top:1px solid #d8d7d0;}
+tr.off td.date-cell{color:#b45309;}
+tr.alert-row{background:#FFF5F5;}
+.date-cell{white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums;}
+.num{text-align:right;font-variant-numeric:tabular-nums;}
+.muted{color:#999;font-size:11px;}
+.red{color:#a32d2d;font-weight:700;}
+.empty-cell{color:#c8c7c0;}
+/* フォーム */
+.form-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px 14px;}
+.form-row{display:flex;flex-direction:column;gap:5px;min-width:0;}
+.form-row input,.form-row select{width:100%;min-width:0;}
+.form-row.full{grid-column:1/-1;}
+.form-row label{font-size:12px;color:#555;font-weight:600;}
+.form-row input,.form-row select,.form-row textarea{height:40px;padding:0 12px;border-radius:8px;border:1px solid #d8d7d0;background:#fff;font-size:15px;}
+.form-row textarea{height:64px;padding:8px 12px;resize:vertical;}
+.hint{font-size:11px;color:#888;}
+.seg{display:flex;border:1px solid #d8d7d0;border-radius:10px;overflow:hidden;}
+.seg button{flex:1;height:44px;border:none;background:#fff;font-size:15px;cursor:pointer;color:#555;}
+.seg button+button{border-left:1px solid #d8d7d0;}
+.seg button.on{background:#1a1a1a;color:#fff;font-weight:700;}
+.seg.danger button.on.yes{background:#a32d2d;}
+.warn-box{background:#FCEBEB;border:1px solid #F09595;color:#791F1F;border-radius:10px;padding:10px 12px;font-size:13px;}
+.info-box{background:#FAEEDA;border:1px solid #f0cf96;color:#633806;border-radius:10px;padding:10px 12px;font-size:13px;}
+.ok-box{background:#EAF3DE;border:1px solid #bcd99a;color:#27500A;border-radius:10px;padding:10px 12px;font-size:13px;}
+.err-box{display:none;margin-bottom:12px;}.err-box.show{display:block;}
+/* 運転者ホーム */
+.drv{max-width:560px;margin:0 auto;padding:16px;}
+.leg-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.leg-tile{border:1px solid #e8e7e0;border-radius:12px;padding:12px;background:#fff;cursor:pointer;text-align:left;}
+.leg-tile.done{border-color:#bcd99a;background:#F6FAF0;}
+.leg-tile.bad{border-color:#F09595;background:#FFF5F5;}
+.leg-tile .lt-label{font-size:12px;color:#666;}
+.leg-tile .lt-val{font-size:18px;font-weight:700;margin-top:4px;}
+.drv-list .row{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid #eeede8;font-size:13px;}
+.drv-list .row .d{width:64px;font-weight:600;}
+.drv-list .row .v{flex:1;display:flex;gap:6px;flex-wrap:wrap;}
+/* ログイン */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;}
+.login-card{background:#fff;border:1px solid #e0dfd8;border-radius:14px;padding:24px;width:100%;max-width:400px;}
+.login-card h1{font-size:18px;margin-bottom:4px;}
+.login-tabs{display:flex;margin:16px 0;border:1px solid #d8d7d0;border-radius:10px;overflow:hidden;}
+.login-tabs button{flex:1;height:40px;border:none;background:#fff;cursor:pointer;font-size:13px;color:#555;}
+.login-tabs button.on{background:#1a1a1a;color:#fff;font-weight:600;}
+.login-card .form-row{margin-bottom:12px;}
+.link-btn{background:none;border:none;color:#0C447C;font-size:12px;cursor:pointer;text-decoration:underline;padding:0;}
+/* モーダル */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;}
+.modal-bg.open{display:flex;}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:560px;}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #eeede8;}
+.modal-header h2{font-size:16px;}
+.modal-close{border:none;background:none;font-size:22px;cursor:pointer;color:#888;}
+.modal-body{padding:16px 18px;}
+.modal-footer{display:flex;justify-content:space-between;gap:8px;padding:12px 18px;border-top:1px solid #eeede8;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:300;}
+.toast.show{opacity:1;}
+.approve-box{border:1px solid #e8e7e0;border-radius:10px;padding:10px;text-align:center;}
+.approve-box .ab-label{font-size:11px;color:#888;}
+.approve-box .ab-val{font-size:13px;font-weight:700;margin:6px 0;min-height:18px;}
+@media(max-width:640px){
+  .main{padding:12px;}.form-grid{grid-template-columns:minmax(0,1fr);}
+  .topbar-title{font-size:15px;white-space:nowrap;}
+  .topbar{padding:8px 12px;}.nav{padding:0 8px;}.nav-btn{padding:12px 12px;}
+  .approve-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== ログイン ===== -->
+<div id="login-screen" class="login-wrap" style="display:none">
+  <div class="login-card">
+    <h1>アルコールチェック</h1>
+    <div class="muted">株式会社ナンワ　酒気帯び確認記録</div>
+    <div id="login-error" class="warn-box err-box"></div>
+    <div id="login-driver">
+      <div class="form-row"><label>ログインID</label><input id="li-code" inputmode="numeric" autocomplete="username" placeholder="例：1001"></div>
+      <div class="form-row"><label>暗証番号</label><input id="li-pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="4〜8桁の数字"></div>
+      <button class="btn btn-primary btn-block" onclick="driverLogin()">ログイン</button>
+      <div class="hint" style="margin-top:10px">ログインID・暗証番号が分からない場合は、安全運転管理者にお問い合わせください。</div>
+      <div class="hint" style="margin-top:14px;text-align:right">管理者の方は <a href="index.html" style="color:#0C447C">管理本部システム</a> から</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 運転者画面 ===== -->
+<div id="driver-shell" style="display:none">
+  <div class="topbar">
+    <div><div class="topbar-title">アルコールチェック</div><div class="topbar-sub" id="drv-sub"></div></div>
+    <div class="topbar-right"><span class="demo-chip demo-only" style="display:none">デモ</span>
+      <button class="btn btn-sm" onclick="openModal('pin-modal')">暗証番号変更</button>
+      <button class="btn btn-sm" onclick="logout()">ログアウト</button></div>
+  </div>
+  <div class="drv">
+    <div id="drv-alert"></div>
+    <div class="card">
+      <div class="card-title">今日の確認 <span class="muted" id="drv-today"></span></div>
+      <div class="leg-tiles" id="drv-legs"></div>
+      <div class="hint">タップして入力します。往路＝通勤時の乗車前、復路＝帰宅時の乗車前。</div>
+    </div>
+    <div class="card">
+      <div class="card-title">検知器の有効性確認 <span class="muted">（週1回）</span></div>
+      <div id="drv-detector"></div>
+    </div>
+    <div class="card">
+      <div class="controls" style="margin-bottom:6px">
+        <button class="btn btn-sm" onclick="drvMonth(-1)">◀</button>
+        <span class="month-label" id="drv-month-label"></span>
+        <button class="btn btn-sm" onclick="drvMonth(1)">▶</button>
+        <span class="spacer"></span>
+        <span id="drv-month-status"></span>
+      </div>
+      <div class="drv-list" id="drv-list"></div>
+      <div style="margin-top:12px" id="drv-confirm-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 記録入力モーダル（運転者・管理者共通） -->
+<div class="modal-bg" id="check-modal">
+  <div class="modal">
+    <div class="modal-header"><h2 id="cm-title">酒気帯び確認の記録</h2><button class="modal-close" onclick="closeModal('check-modal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-row"><label>日付</label><input type="date" id="cm-date"></div>
+        <div class="form-row"><label>確認時刻</label><input type="time" id="cm-time"></div>
+        <div class="form-row full"><label>区分</label>
+          <div class="seg" id="cm-leg"><button data-v="往路">往路（通勤時 乗車前）</button><button data-v="復路">復路（帰宅時 乗車前）</button></div></div>
+        <div class="form-row full"><label>酒気帯びの有無</label>
+          <div class="seg danger" id="cm-det"><button data-v="false">無</button><button data-v="true" class="yes">有</button></div></div>
+        <div class="form-row"><label>数値（mg/L）</label><input type="number" id="cm-value" step="0.01" min="0" max="5" inputmode="decimal" value="0.00"></div>
+        <div class="form-row"><label>確認方法</label><select id="cm-method"><option>対面</option><option>ビデオ通話</option><option>電話</option><option>その他</option></select></div>
+        <div class="form-row full"><label>確認者</label><select id="cm-confirmer"></select></div>
+        <div class="form-row full" id="cm-inst-row"><label>指示事項</label><input id="cm-inst" placeholder="例：運転禁止・代替運転者を手配"></div>
+        <div class="form-row full"><label>備考</label><input id="cm-note"></div>
+      </div>
+      <div id="cm-warn" class="warn-box" style="display:none;margin-top:12px"></div>
+    </div>
+    <div class="modal-footer">
+      <span class="spacer"></span>
+      <div style="display:flex;gap:8px"><button class="btn" onclick="closeModal('check-modal')">キャンセル</button><button class="btn btn-primary" id="cm-save" onclick="saveCheck()">保存</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- 暗証番号変更（運転者） -->
+<div class="modal-bg" id="pin-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header"><h2>暗証番号の変更</h2><button class="modal-close" onclick="closeModal('pin-modal')">×</button></div>
+    <div class="modal-body">
+      <div class="form-row" style="margin-bottom:10px"><label>今の暗証番号</label><input id="pm-old" type="password" inputmode="numeric"></div>
+      <div class="form-row" style="margin-bottom:10px"><label>新しい暗証番号（4〜8桁の数字）</label><input id="pm-new" type="password" inputmode="numeric"></div>
+      <div class="form-row"><label>新しい暗証番号（確認）</label><input id="pm-new2" type="password" inputmode="numeric"></div>
+    </div>
+    <div class="modal-footer"><span></span><div style="display:flex;gap:8px"><button class="btn" onclick="closeModal('pin-modal')">キャンセル</button><button class="btn btn-primary" onclick="changePin()">変更</button></div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =====================================================================
+// アルコールチェック 運転者用（alcohol.html）
+//   nanwa-kanri と同じ Supabase プロジェクト。データは alcohol スキーマ（直接は触れない）
+//   運転者専用（管理者の機能は管理本部システム index.html の「アルコールチェック」タブ）
+//   画面からは public.alc_driver_* の RPC だけを呼ぶ
+//   ?demo を付けると DB に接続せず、ダミーデータで動作確認できる
+// =====================================================================
+const SUPABASE_URL = 'https://cicxvcjnvkynhukbnrns.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
+const DEMO = !!window.__ALC_DEMO__ || /[?&]demo\b/.test(location.search);
+const TOKEN_KEY = 'alc_driver_token';
+let sb = null;
+
+const ROLE_LABEL = { admin: 'システム管理者', manager: '安全運転管理者', sub_manager: '副安全運転管理者' };
+const DOW = ['日','月','火','水','木','金','土'];
+let HOLIDAYS = {};
+
+// ---------- ユーティリティ ----------
+const $ = id => document.getElementById(id);
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function pad(n){ return String(n).padStart(2, '0'); }
+function ymd(y, m, d){ return `${y}-${pad(m)}-${pad(d)}`; }
+function daysIn(y, m){ return new Date(y, m, 0).getDate(); }
+function todayStr(){ const t = new Date(); return ymd(t.getFullYear(), t.getMonth() + 1, t.getDate()); }
+function nowTime(){ const t = new Date(); return pad(t.getHours()) + ':' + pad(t.getMinutes()); }
+function addDays(s, n){ const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return ymd(d.getFullYear(), d.getMonth() + 1, d.getDate()); }
+function diffDays(a, b){ return Math.round((new Date(a + 'T00:00:00') - new Date(b + 'T00:00:00')) / 86400000); }
+function ymFirst(y, m){ return ymd(y, m, 1); }
+function dowOf(s){ return new Date(s + 'T00:00:00').getDay(); }
+function isOff(s){ const w = dowOf(s); return w === 0 || w === 6 || !!HOLIDAYS[s]; }
+function md(s){ if (!s) return ''; const [, m, d] = s.split('-'); return `${+m}/${+d}`; }
+function mdw(s){ return `${md(s)}（${DOW[dowOf(s)]}）`; }
+function hm(t){ return t ? String(t).slice(0, 5) : ''; }
+function fmtVal(v){ return v == null ? '' : Number(v).toFixed(2); }
+function fmtDT(ts){ if (!ts) return ''; const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function reiwa(y){ return y - 2018; }
+function normName(s){ return String(s || '').replace(/[\s　]/g, ''); }
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400); }
+function openModal(id){ $(id).classList.add('open'); }
+function closeModal(id){ $(id).classList.remove('open'); }
+function lsGet(k){ try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v){ try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+
+const ERR = {
+  SESSION_EXPIRED: 'ログインの有効期限が切れました。もう一度ログインしてください。',
+  MONTH_APPROVED: 'この月は承認済みのため変更できません。承認を取り消してから修正してください。',
+  MONTH_CONFIRMED: 'この月は確定済みです。修正が必要な場合は安全運転管理者に連絡してください。',
+  DATE_OUT_OF_RANGE: '入力できない日付です（運転者は今日〜2日前まで。未来の日付は不可）。',
+  BAD_VALUE: '数値が正しくありません（0.00〜5.00）。',
+  BAD_PIN: '暗証番号は4〜8桁の数字にしてください。',
+  LOGIN_FAILED: 'ログインIDまたは暗証番号が違います。',
+  LOCKED: '暗証番号を5回間違えたため、15分間ログインできません。',
+  NOT_STAFF: '管理担当者として登録されていません。',
+  OUT_OF_SCOPE: '担当外の運転者です。',
+  NO_PERMISSION: 'この操作の権限がありません。',
+  CANNOT_REMOVE_SELF: '自分自身は削除できません。',
+};
+function errText(e){
+  const m = (e && (e.message || e.details)) || String(e);
+  for (const k in ERR) if (m.includes(k)) return ERR[k];
+  if (/duplicate key|login_code_key|unique/i.test(m)) return 'そのログインIDは既に使われています。';
+  if (/login_code_check/.test(m)) return 'ログインIDは4〜8桁の数字にしてください。';
+  if (/Failed to fetch|NetworkError/i.test(m)) return '通信できませんでした。電波の良い場所で再度お試しください。';
+  return m;
+}
+
+// ---------- API（本番：Supabase RPC ／ デモ：メモリ上のダミー） ----------
+async function api(name, params = {}){
+  if (DEMO) {
+    await new Promise(r => setTimeout(r, 120));
+    const r = MOCK[name](params);
+    return r === undefined ? null : JSON.parse(JSON.stringify(r));
+  }
+  const { data, error } = await sb.rpc(name, params);
+  if (error) {
+    if (/SESSION_EXPIRED/.test(error.message) && MODE === 'driver') { lsSet(TOKEN_KEY, null); showLogin(ERR.SESSION_EXPIRED); }
+    throw error;
+  }
+  return data;
+}
+async function guarded(fn, okMsg){
+  try { const r = await fn(); if (okMsg) toast(okMsg); return r; }
+  catch (e) { alertErr(e); return undefined; }
+}
+function alertErr(e){
+  const msg = errText(e);
+  toast(msg);
+}
+
+// =====================================================================
+// 起動・ログイン
+// =====================================================================
+let MODE = null;
+
+function showLogin(msg){
+  MODE = null;
+  $('driver-shell').style.display = 'none';
+  $('login-screen').style.display = 'flex';
+  const e = $('login-error');
+  if (msg) { e.textContent = msg; e.classList.add('show'); } else e.classList.remove('show');
+  if (DEMO && !msg) { e.innerHTML = '<b>デモ表示</b>：DBには接続していません。ログインID <b>1001</b>／暗証番号 <b>1234</b> でログインできます。'; e.className = 'info-box err-box show'; }
+}
+async function driverLogin(){
+  const code = $('li-code').value.trim(), pin = $('li-pin').value.trim();
+  if (!code || !pin) { showLogin('ログインIDと暗証番号を入力してください。'); return; }
+  try {
+    const r = await api('alc_driver_login', { p_code: code, p_pin: pin });
+    if (r.error) { showLogin(ERR[r.error] || ERR.LOGIN_FAILED); return; }
+    lsSet(TOKEN_KEY, r.token); $('li-pin').value = '';
+    await driverStart();
+  } catch (e) { showLogin(errText(e)); }
+}
+async function logout(){
+  if (MODE === 'driver') { const t = lsGet(TOKEN_KEY); lsSet(TOKEN_KEY, null); try { await api('alc_driver_logout', { p_token: t }); } catch (e) {} }
+  showLogin();
+}
+async function loadHolidays(){
+  try { const r = await fetch('https://holidays-jp.github.io/api/v1/date.json'); if (r.ok) HOLIDAYS = await r.json(); } catch (e) {}
+}
+function loadScript(src){ return new Promise((ok, ng) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ng; document.head.appendChild(s); }); }
+
+async function init(){
+  document.querySelectorAll('.demo-only').forEach(e => e.style.display = DEMO ? '' : 'none');
+  document.querySelectorAll('.modal-bg').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); }));
+  $('li-pin').addEventListener('keydown', e => { if (e.key === 'Enter') driverLogin(); });
+  loadHolidays();
+  if (!DEMO) {
+    await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  }
+  if (lsGet(TOKEN_KEY)) { try { await driverStart(); return; } catch (e) { lsSet(TOKEN_KEY, null); } }
+  showLogin();
+}
+
+// =====================================================================
+// 運転者画面
+// =====================================================================
+const DRV = { data: null, y: 0, m: 0 };
+
+async function driverStart(){
+  const t = new Date(); DRV.y = t.getFullYear(); DRV.m = t.getMonth() + 1;
+  await drvLoad();
+  MODE = 'driver';
+  $('login-screen').style.display = 'none'; $('driver-shell').style.display = '';
+}
+async function drvLoad(){
+  DRV.data = await api('alc_driver_month', { p_token: lsGet(TOKEN_KEY), p_ym: ymFirst(DRV.y, DRV.m) });
+  if (DRV.y === new Date().getFullYear() && DRV.m === new Date().getMonth() + 1) DRV.today = DRV.data;
+  else if (!DRV.today) DRV.today = await api('alc_driver_month', { p_token: lsGet(TOKEN_KEY), p_ym: ymFirst(new Date().getFullYear(), new Date().getMonth() + 1) });
+  renderDriver();
+}
+async function drvMonth(delta){
+  let y = DRV.y, m = DRV.m + delta; if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; }
+  const t = new Date(); if (y * 12 + m > t.getFullYear() * 12 + t.getMonth() + 1) return;
+  DRV.y = y; DRV.m = m; await guarded(drvLoad);
+}
+function drvEditable(date){
+  const t = todayStr(), mon = DRV.data.monthly || {};
+  return date <= t && date >= addDays(t, -2) && !mon.driver_confirmed_at && !mon.sub_at && !mon.mgr_at;
+}
+function renderDriver(){
+  const d = DRV.data, T = DRV.today || d, t = todayStr();
+  $('drv-sub').textContent = `${d.employee.name}　${d.driver && d.driver.vehicle_label ? '車番 ' + d.driver.vehicle_label : '車両未設定'}`;
+  $('drv-today').textContent = mdw(t);
+  // 今日のタイル
+  $('drv-legs').innerHTML = ['往路','復路'].map(leg => {
+    const c = T.checks.find(x => x.check_date === t && x.leg === leg);
+    const cls = c ? (c.detected ? 'bad' : 'done') : '';
+    const val = c ? `${hm(c.checked_time)}　${c.detected ? '<span class="red">有</span>' : '無'} ${fmtVal(c.value)}` : '<span class="muted" style="font-size:15px">未入力 ＋</span>';
+    return `<button class="leg-tile ${cls}" onclick="openCheck('driver','${t}','${leg}')"><div class="lt-label">${leg}（${leg === '往路' ? '通勤時' : '帰宅時'} 乗車前）</div><div class="lt-val">${val}</div></button>`;
+  }).join('');
+  // 検知器
+  const last = T.last_detector, todayDet = T.detector.find(x => x.check_date === t);
+  const ago = last ? diffDays(t, last) : null;
+  let html = last ? `<div style="margin-bottom:10px">前回の確認：<b>${mdw(last)}</b>（${ago === 0 ? '今日' : ago + '日前'}）</div>` : '<div style="margin-bottom:10px">まだ記録がありません。</div>';
+  if (ago == null || ago >= 7) html = `<div class="info-box" style="margin-bottom:10px">検知器の有効性確認をしてください（週1回）。${last ? '前回：' + mdw(last) : ''}</div>`;
+  html += todayDet ? `<div class="ok-box">今日の確認：<b>${todayDet.valid ? '有効' : '無効'}</b>　<button class="link-btn" onclick="drvDetector(${!todayDet.valid})">「${todayDet.valid ? '無効' : '有効'}」に直す</button></div>`
+    : `<div style="display:flex;gap:8px"><button class="btn btn-primary" style="flex:1;height:44px" onclick="drvDetector(true)">今日確認した：有効</button><button class="btn btn-danger" style="height:44px" onclick="drvDetector(false)">無効</button></div>`;
+  $('drv-detector').innerHTML = html;
+  $('drv-alert').innerHTML = T.checks.some(x => x.check_date === t && x.detected)
+    ? '<div class="warn-box" style="margin-bottom:12px"><b>酒気帯び「有」が記録されています。</b>運転せず、安全運転管理者の指示に従ってください。</div>' : '';
+  // 月の一覧
+  $('drv-month-label').textContent = `${DRV.y}年${DRV.m}月`;
+  const mon = d.monthly || {};
+  $('drv-month-status').innerHTML = mon.mgr_at ? '<span class="badge b-green">承認済み</span>' : mon.sub_at ? '<span class="badge b-blue">安管(補) 確認済み</span>' : mon.driver_confirmed_at ? '<span class="badge b-blue">確定済み</span>' : '';
+  const last_d = (DRV.y === new Date().getFullYear() && DRV.m === new Date().getMonth() + 1) ? new Date().getDate() : daysIn(DRV.y, DRV.m);
+  const rows = [];
+  for (let day = last_d; day >= 1; day--) {
+    const s = ymd(DRV.y, DRV.m, day);
+    const cs = ['往路','復路'].map(leg => d.checks.find(x => x.check_date === s && x.leg === leg));
+    const det = d.detector.find(x => x.check_date === s);
+    if (!cs[0] && !cs[1] && !det && (isOff(s) || (d.driver && d.driver.started_on && s < d.driver.started_on))) continue;   // 対象になる前の日は出さない
+    const parts = ['往路','復路'].map((leg, i) => {
+      const c = cs[i]; const ed = drvEditable(s);
+      if (!c) return `<span class="badge b-gray" ${ed ? `style="cursor:pointer" onclick="openCheck('driver','${s}','${leg}')"` : ''}>${leg[0]} 未入力</span>`;
+      return `<span class="badge ${c.detected ? 'b-red' : 'b-green'}" ${ed ? `style="cursor:pointer" onclick="openCheck('driver','${s}','${leg}')"` : ''}>${leg[0]} ${hm(c.checked_time)} ${c.detected ? '有' : '無'} ${fmtVal(c.value)}</span>`;
+    });
+    if (det) parts.push(`<span class="badge ${det.valid ? 'b-blue' : 'b-red'}">検知器 ${det.valid ? '有効' : '無効'}</span>`);
+    rows.push(`<div class="row"><div class="d" style="${isOff(s) ? 'color:#b45309' : ''}">${mdw(s)}</div><div class="v">${parts.join('')}</div></div>`);
+  }
+  $('drv-list').innerHTML = rows.join('') || '<div class="muted" style="padding:12px 0">記録がありません。</div>';
+  const isPast = DRV.y * 12 + DRV.m < new Date().getFullYear() * 12 + new Date().getMonth() + 1;
+  const lastDay = DRV.y === new Date().getFullYear() && DRV.m === new Date().getMonth() + 1 && new Date().getDate() >= daysIn(DRV.y, DRV.m) - 2;
+  $('drv-confirm-wrap').innerHTML = mon.driver_confirmed_at
+    ? `<div class="muted">運転者確定：${fmtDT(mon.driver_confirmed_at)}${mon.sub_by ? '　安管(補)：' + esc(mon.sub_by) : ''}${mon.mgr_by ? '　安管：' + esc(mon.mgr_by) : ''}</div>`
+    : (isPast || lastDay) ? `<button class="btn btn-primary btn-block" onclick="drvConfirm()">${DRV.m}月の記録を確定する（月末の確認）</button><div class="hint" style="margin-top:6px">確定すると、この月の記録は自分では修正できなくなります。</div>` : '';
+}
+async function drvDetector(valid){
+  const r = await guarded(() => api('alc_driver_save_detector', { p_token: lsGet(TOKEN_KEY), p_date: todayStr(), p_valid: valid, p_note: null }), '検知器の確認を記録しました');
+  if (r !== undefined) await guarded(drvLoad);
+}
+async function drvConfirm(){
+  if (!confirm(`${DRV.y}年${DRV.m}月の記録を確定します。よろしいですか？`)) return;
+  const r = await guarded(() => api('alc_driver_confirm_month', { p_token: lsGet(TOKEN_KEY), p_ym: ymFirst(DRV.y, DRV.m) }), '確定しました');
+  if (r !== undefined) await guarded(drvLoad);
+}
+async function changePin(){
+  const o = $('pm-old').value, n = $('pm-new').value, n2 = $('pm-new2').value;
+  if (!/^[0-9]{4,8}$/.test(n)) { toast(ERR.BAD_PIN); return; }
+  if (n !== n2) { toast('確認用の暗証番号が一致しません'); return; }
+  const r = await guarded(() => api('alc_driver_change_pin', { p_token: lsGet(TOKEN_KEY), p_old: o, p_new: n }), '暗証番号を変更しました');
+  if (r !== undefined) { ['pm-old','pm-new','pm-new2'].forEach(i => $(i).value = ''); closeModal('pin-modal'); }
+}
+
+// =====================================================================
+// 記録入力モーダル（運転者・管理者共通）
+// =====================================================================
+let CM = null; // {who, emp, data}
+function segSet(id, v){ document.querySelectorAll(`#${id} button`).forEach(b => b.classList.toggle('on', b.dataset.v === String(v))); }
+function segGet(id){ const b = document.querySelector(`#${id} button.on`); return b ? b.dataset.v : null; }
+document.addEventListener('click', e => {
+  const b = e.target.closest('.seg button'); if (!b) return;
+  const seg = b.parentElement; seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  if (seg.id === 'cm-det') { if (b.dataset.v === 'false' && Number($('cm-value').value) > 0) $('cm-value').value = '0.00'; cmUpdate(); }
+  if (seg.id === 'cm-leg' && CM) cmFill();
+});
+function openCheck(who, date, leg){
+  const data = date.slice(0, 7) === ymFirst(DRV.y, DRV.m).slice(0, 7) ? DRV.data : DRV.today;
+  if (who === 'driver' && !drvEditable(date)) { toast((data.monthly && data.monthly.driver_confirmed_at) ? ERR.MONTH_CONFIRMED : '運転者が入力できるのは今日〜2日前までです'); return; }
+  CM = { who, data, emp: data.employee.id };
+  const confs = data.confirmers || [];
+  $('cm-confirmer').innerHTML = '<option value="">（選択してください）</option>' + confs.map(c => `<option value="${c.id}">${esc(c.name)}（${ROLE_LABEL[c.role] || ''}${c.honbu ? '・' + esc(c.honbu) : ''}）</option>`).join('');
+  $('cm-date').value = date;
+  $('cm-date').min = who === 'driver' ? addDays(todayStr(), -2) : '';
+  $('cm-date').max = todayStr();
+  $('cm-title').textContent = who === 'driver' ? '酒気帯び確認の記録' : `代理入力：${data.employee.name}`;
+  segSet('cm-leg', leg);
+  cmFill();
+  openModal('check-modal');
+}
+$('cm-date') && $('cm-date').addEventListener('change', () => CM && cmFill());
+function cmFill(){
+  const date = $('cm-date').value, leg = segGet('cm-leg');
+  let data = CM.data;
+  if (CM.who === 'driver') data = date.slice(0, 7) === ymFirst(DRV.y, DRV.m).slice(0, 7) ? DRV.data : DRV.today;
+  const c = data.checks.find(x => x.check_date === date && x.leg === leg);
+  const dr = data.driver || {};
+  CM.existing = c || null;
+  $('cm-time').value = c ? hm(c.checked_time) : (date === todayStr() ? nowTime() : '');
+  segSet('cm-det', c ? c.detected : false);
+  $('cm-value').value = c ? fmtVal(c.value) : '0.00';
+  $('cm-method').value = c ? c.method : (dr.default_method || 'ビデオ通話');
+  $('cm-confirmer').value = c ? (c.confirmer_id || '') : (dr.default_confirmer || '');
+  $('cm-inst').value = c ? (c.instruction || '') : '';
+  $('cm-note').value = c ? (c.note || '') : '';
+  $('cm-save').textContent = c ? '更新' : '保存';
+  cmUpdate();
+}
+function cmUpdate(){
+  const v = Number($('cm-value').value) || 0;
+  if (v > 0 && segGet('cm-det') !== 'true') segSet('cm-det', true);
+  const yes = segGet('cm-det') === 'true';
+  $('cm-warn').style.display = yes ? '' : 'none';
+  $('cm-warn').innerHTML = '<b>酒気帯び「有」</b>：運転させず、安全運転管理者の指示事項を記録してください。';
+}
+$('cm-value') && $('cm-value').addEventListener('input', cmUpdate);
+async function saveCheck(){
+  const p = {
+    p_date: $('cm-date').value, p_leg: segGet('cm-leg'), p_time: $('cm-time').value,
+    p_detected: segGet('cm-det') === 'true', p_value: Number($('cm-value').value || 0),
+    p_method: $('cm-method').value, p_confirmer: $('cm-confirmer').value || null,
+    p_instruction: $('cm-inst').value.trim() || null, p_note: $('cm-note').value.trim() || null,
+  };
+  if (!p.p_date || !p.p_time) { toast('日付と確認時刻を入力してください'); return; }
+  if (!p.p_confirmer) { toast('確認者を選んでください'); return; }
+  if (p.p_detected && !p.p_instruction) { toast('「有」の場合は指示事項を入力してください'); return; }
+  if (!(p.p_value >= 0 && p.p_value <= 5)) { toast(ERR.BAD_VALUE); return; }
+  $('cm-save').disabled = true;
+  try {
+    if (CM.who === 'driver') { await api('alc_driver_save_check', { p_token: lsGet(TOKEN_KEY), ...p }); closeModal('check-modal'); toast('記録しました'); await drvLoad(); }
+  } catch (e) { toast(errText(e)); }
+  finally { $('cm-save').disabled = false; }
+}
+
+// =====================================================================
+// デモ用のダミーAPI（?demo のときだけ使う。本番では使われない）
+// =====================================================================
+const MOCK = (() => {
+  const uid = () => Math.random().toString(36).slice(2, 10);
+  const E = [
+    { id: 'e1', name: '武田 和彦', yomi: 'たけだ', honbu: '管理本部' },
+    { id: 'e2', name: '安全 一郎', yomi: 'あんぜん', honbu: '管理本部' },
+    { id: 'e3', name: '松元 伸孝', yomi: 'まつもと', honbu: '建設事業本部' },
+    { id: 'e4', name: '山田 太郎', yomi: 'やまだ', honbu: 'エネルギー事業本部' },
+    { id: 'e5', name: '鈴木 花子', yomi: 'すずき', honbu: '環境衛生事業本部' },
+    { id: 'e6', name: '副島 次郎', yomi: 'そえじま', honbu: '建設事業本部' },
+  ];
+  const V = [
+    { id: 'v1', label: '鹿児島 な 1295', assignee: '松元 伸孝', model: 'NV150 AD' },
+    { id: 'v2', label: '鹿児島 400 な 3790', assignee: '山田 太郎', model: 'プロボックス HV' },
+    { id: 'v3', label: '鹿児島 480 さ 2201', assignee: '鈴木 花子', model: 'ハイエース' },
+  ];
+  const S = [{ employee_id: 'e1', role: 'admin', honbu: null }, { employee_id: 'e2', role: 'manager', honbu: null }, { employee_id: 'e6', role: 'sub_manager', honbu: '建設事業本部' }];
+  const D = [
+    { employee_id: 'e3', login_code: '1001', pin: '1234', vehicle_id: 'v1', active: true, default_confirmer: 'e2', default_method: 'ビデオ通話' },
+    { employee_id: 'e4', login_code: '1002', pin: '1111', vehicle_id: 'v2', active: true, default_confirmer: 'e2', default_method: '対面' },
+    { employee_id: 'e5', login_code: '1003', pin: null, vehicle_id: 'v3', active: true },
+  ];
+  const C = [], X = [], M = [];
+  const name = id => (E.find(e => e.id === id) || {}).name;
+  const vlabel = id => (V.find(v => v.id === id) || {}).label || null;
+  const t = todayStr(), tt = new Date();
+  const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  // 先月〜今月のダミー記録
+  let badDone = false;
+  for (let back = 40; back >= 0; back--) {
+    const s = addDays(t, -back); const w = dowOf(s);
+    if (w === 0 || w === 6) continue;
+    D.slice(0, 2).forEach((dr, i) => {
+      if (i === 1 && (back % 9 === 3)) return;              // 山田さんは時々記録なし
+      if (back === 0 && i === 0) return;                     // 松元さんの今日はまだ
+      [['往路', `0${6}:${pad(rnd(30, 59))}`], ['復路', `${rnd(18, 19)}:${pad(rnd(0, 59))}`]].forEach(([leg, tm]) => {
+        if (back === 0 && leg === '復路') return;
+        if (i === 1 && back === 5 && leg === '復路') return;  // 片道のみ
+        const bad = i === 1 && back <= 12 && !badDone && leg === '往路'; if (bad) badDone = true;
+        C.push({ id: uid(), employee_id: dr.employee_id, check_date: s, leg, checked_time: tm + ':00', detected: bad, value: bad ? 0.08 : 0,
+          vehicle_label: vlabel(dr.vehicle_id), method: i === 0 ? 'ビデオ通話' : '対面', confirmer_id: 'e2', confirmer_name: '安全 一郎',
+          instruction: bad ? '運転禁止。同乗者が運転して出勤' : null, note: null, entered_by: '本人', updated_at: new Date().toISOString() });
+      });
+      if (w === 1) X.push({ id: uid(), employee_id: dr.employee_id, check_date: s, valid: true, entered_by: '本人' });
+    });
+  }
+  const prevYm = ymFirst(tt.getMonth() === 0 ? tt.getFullYear() - 1 : tt.getFullYear(), tt.getMonth() === 0 ? 12 : tt.getMonth());
+  M.push({ employee_id: 'e3', ym: prevYm, driver_confirmed_at: new Date().toISOString(), sub_by: '副島 次郎', sub_at: new Date().toISOString(), mgr_by: '安全 一郎', mgr_at: new Date().toISOString() });
+  let session = null;
+  const inMonth = (s, ym) => s.slice(0, 7) === ym.slice(0, 7);
+  const fail = code => { throw new Error(code); };
+  const ymOf = s => s.slice(0, 7) + '-01';
+  const monthJson = (emp, ym) => {
+    const dr = D.find(d => d.employee_id === emp), e = E.find(x => x.id === emp);
+    const det = X.filter(x => x.employee_id === emp).map(x => x.check_date).sort();
+    return { employee: e, driver: dr && { login_code: dr.login_code, vehicle_id: dr.vehicle_id, vehicle_label: vlabel(dr.vehicle_id), active: dr.active, default_confirmer: dr.default_confirmer, default_method: dr.default_method },
+      checks: C.filter(c => c.employee_id === emp && inMonth(c.check_date, ym)), detector: X.filter(x => x.employee_id === emp && inMonth(x.check_date, ym)),
+      last_detector: det[det.length - 1] || null, monthly: M.find(m => m.employee_id === emp && m.ym === ymOf(ym)) || null,
+      confirmers: S.map(s => ({ id: s.employee_id, name: name(s.employee_id), role: s.role, honbu: s.honbu })) };
+  };
+  const saveCheck = (emp, p, actor, isDriver) => {
+    const mo = M.find(m => m.employee_id === emp && m.ym === ymOf(p.p_date)) || {};
+    if (mo.sub_at || mo.mgr_at) fail('MONTH_APPROVED'); if (isDriver && mo.driver_confirmed_at) fail('MONTH_CONFIRMED');
+    let c = C.find(x => x.employee_id === emp && x.check_date === p.p_date && x.leg === p.p_leg);
+    const dr = D.find(d => d.employee_id === emp);
+    const v = { checked_time: p.p_time, detected: p.p_detected || p.p_value > 0, value: p.p_value, method: p.p_method, confirmer_id: p.p_confirmer, confirmer_name: name(p.p_confirmer),
+      instruction: p.p_instruction, note: p.p_note, entered_by: actor, updated_at: new Date().toISOString() };
+    if (c) Object.assign(c, v); else C.push(c = { id: uid(), employee_id: emp, check_date: p.p_date, leg: p.p_leg, vehicle_label: vlabel(dr && dr.vehicle_id), ...v });
+    if (dr) { dr.default_confirmer = p.p_confirmer; dr.default_method = p.p_method; }
+    return c;
+  };
+  return {
+    alc_driver_login: p => { const d = D.find(x => x.login_code === p.p_code); if (!d || d.pin !== p.p_pin) return { error: 'LOGIN_FAILED' }; session = d.employee_id; return { token: 'demo-' + d.employee_id, name: name(d.employee_id) }; },
+    alc_driver_logout: () => { session = null; },
+    alc_driver_month: p => { const emp = (p.p_token || '').replace('demo-', ''); if (!D.find(d => d.employee_id === emp)) fail('SESSION_EXPIRED'); return { ...monthJson(emp, p.p_ym), today: t }; },
+    alc_driver_save_check: p => { const emp = p.p_token.replace('demo-', ''); if (p.p_date > t || p.p_date < addDays(t, -2)) fail('DATE_OUT_OF_RANGE'); return saveCheck(emp, p, '本人', true); },
+    alc_driver_save_detector: p => { const emp = p.p_token.replace('demo-', ''); let x = X.find(z => z.employee_id === emp && z.check_date === p.p_date); if (x) x.valid = p.p_valid; else X.push(x = { id: uid(), employee_id: emp, check_date: p.p_date, valid: p.p_valid, entered_by: '本人' }); return x; },
+    alc_driver_confirm_month: p => { const emp = p.p_token.replace('demo-', ''); let m = M.find(z => z.employee_id === emp && z.ym === ymOf(p.p_ym)); if (!m) M.push(m = { employee_id: emp, ym: ymOf(p.p_ym) }); m.driver_confirmed_at = m.driver_confirmed_at || new Date().toISOString(); },
+    alc_driver_change_pin: p => { const d = D.find(x => 'demo-' + x.employee_id === p.p_token); if (d.pin !== p.p_old) fail('LOGIN_FAILED'); d.pin = p.p_new; },
+  };
+})();
+
+init();
+</script>
+</body>
+</html>
