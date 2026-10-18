@@ -126,6 +126,7 @@ tr.alert-row{background:#FFF5F5;}
       <div class="form-row"><label>暗証番号</label><input id="li-pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="4〜8桁の数字"></div>
       <button class="btn btn-primary btn-block" onclick="driverLogin()">ログイン</button>
       <div class="hint" style="margin-top:10px">ログインID・暗証番号が分からない場合は、安全運転管理者にお問い合わせください。</div>
+      <div class="hint" style="margin-top:10px">操作の練習は ログインID <b>0000</b>／暗証番号 <b>0000</b>（入力しても保存されません）</div>
       <div class="hint" style="margin-top:14px;text-align:right">管理者の方は <a href="index.html" style="color:#0C447C">管理本部システム</a> から</div>
     </div>
   </div>
@@ -140,6 +141,7 @@ tr.alert-row{background:#FFF5F5;}
       <button class="btn btn-sm" onclick="logout()">ログアウト</button></div>
   </div>
   <div class="drv">
+    <div id="drv-practice" class="info-box" style="display:none;margin-bottom:12px"><b>練習モード</b>：入力しても保存されません。管理者の画面にも反映されません。ログアウトすると元に戻ります。</div>
     <div id="drv-alert"></div>
     <div class="card">
       <div class="card-title">今日の確認 <span class="muted" id="drv-today"></span></div>
@@ -216,7 +218,12 @@ tr.alert-row{background:#FFF5F5;}
 // =====================================================================
 const SUPABASE_URL = 'https://cicxvcjnvkynhukbnrns.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
-const DEMO = !!window.__ALC_DEMO__ || /[?&]demo\b/.test(location.search);
+let DEMO = !!window.__ALC_DEMO__ || /[?&]demo\b/.test(location.search);
+// 練習用アカウント：このIDと暗証番号でログインすると、DBに接続しない練習モードになる（入力は保存されない）
+const PRACTICE_CODE = '0000', PRACTICE_PIN = '0000';
+let PRACTICE = false, MEM_TOKEN = null;
+function getToken(){ return PRACTICE ? MEM_TOKEN : lsGet(TOKEN_KEY); }
+function setToken(v){ if (PRACTICE) MEM_TOKEN = v; else lsSet(TOKEN_KEY, v); }
 const TOKEN_KEY = 'alc_driver_token';
 let sb = null;
 
@@ -244,7 +251,7 @@ function fmtVal(v){ return v == null ? '' : Number(v).toFixed(2); }
 function fmtDT(ts){ if (!ts) return ''; const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function reiwa(y){ return y - 2018; }
 function normName(s){ return String(s || '').replace(/[\s　]/g, ''); }
-function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400); }
+function toast(msg){ if (PRACTICE && /記録しました|確定しました|変更しました/.test(msg)) msg += '（練習のため保存されません）'; const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400); }
 function openModal(id){ $(id).classList.add('open'); }
 function closeModal(id){ $(id).classList.remove('open'); }
 function lsGet(k){ try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -282,7 +289,7 @@ async function api(name, params = {}){
   }
   const { data, error } = await sb.rpc(name, params);
   if (error) {
-    if (/SESSION_EXPIRED/.test(error.message) && MODE === 'driver') { lsSet(TOKEN_KEY, null); showLogin(ERR.SESSION_EXPIRED); }
+    if (/SESSION_EXPIRED/.test(error.message) && MODE === 'driver') { setToken(null); showLogin(ERR.SESSION_EXPIRED); }
     throw error;
   }
   return data;
@@ -312,15 +319,17 @@ function showLogin(msg){
 async function driverLogin(){
   const code = $('li-code').value.trim(), pin = $('li-pin').value.trim();
   if (!code || !pin) { showLogin('ログインIDと暗証番号を入力してください。'); return; }
+  if (code === PRACTICE_CODE && pin === PRACTICE_PIN) { PRACTICE = true; DEMO = true; }   // 練習モード（DBに接続しない）
   try {
     const r = await api('alc_driver_login', { p_code: code, p_pin: pin });
     if (r.error) { showLogin(ERR[r.error] || ERR.LOGIN_FAILED); return; }
-    lsSet(TOKEN_KEY, r.token); $('li-pin').value = '';
+    setToken(r.token); $('li-pin').value = '';
     await driverStart();
   } catch (e) { showLogin(errText(e)); }
 }
 async function logout(){
-  if (MODE === 'driver') { const t = lsGet(TOKEN_KEY); lsSet(TOKEN_KEY, null); try { await api('alc_driver_logout', { p_token: t }); } catch (e) {} }
+  if (PRACTICE) { location.reload(); return; }   // 練習モードは画面を読み込み直して入力内容を消す
+  if (MODE === 'driver') { const t = getToken(); setToken(null); try { await api('alc_driver_logout', { p_token: t }); } catch (e) {} }
   showLogin();
 }
 async function loadHolidays(){
@@ -337,7 +346,7 @@ async function init(){
     await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
     sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   }
-  if (lsGet(TOKEN_KEY)) { try { await driverStart(); return; } catch (e) { lsSet(TOKEN_KEY, null); } }
+  if (getToken()) { try { await driverStart(); return; } catch (e) { setToken(null); } }
   showLogin();
 }
 
@@ -351,11 +360,12 @@ async function driverStart(){
   await drvLoad();
   MODE = 'driver';
   $('login-screen').style.display = 'none'; $('driver-shell').style.display = '';
+  $('drv-practice').style.display = PRACTICE ? '' : 'none';
 }
 async function drvLoad(){
-  DRV.data = await api('alc_driver_month', { p_token: lsGet(TOKEN_KEY), p_ym: ymFirst(DRV.y, DRV.m) });
+  DRV.data = await api('alc_driver_month', { p_token: getToken(), p_ym: ymFirst(DRV.y, DRV.m) });
   if (DRV.y === new Date().getFullYear() && DRV.m === new Date().getMonth() + 1) DRV.today = DRV.data;
-  else if (!DRV.today) DRV.today = await api('alc_driver_month', { p_token: lsGet(TOKEN_KEY), p_ym: ymFirst(new Date().getFullYear(), new Date().getMonth() + 1) });
+  else if (!DRV.today) DRV.today = await api('alc_driver_month', { p_token: getToken(), p_ym: ymFirst(new Date().getFullYear(), new Date().getMonth() + 1) });
   renderDriver();
 }
 async function drvMonth(delta){
@@ -415,19 +425,19 @@ function renderDriver(){
     : (isPast || lastDay) ? `<button class="btn btn-primary btn-block" onclick="drvConfirm()">${DRV.m}月の記録を確定する（月末の確認）</button><div class="hint" style="margin-top:6px">確定すると、この月の記録は自分では修正できなくなります。</div>` : '';
 }
 async function drvDetector(valid){
-  const r = await guarded(() => api('alc_driver_save_detector', { p_token: lsGet(TOKEN_KEY), p_date: todayStr(), p_valid: valid, p_note: null }), '検知器の確認を記録しました');
+  const r = await guarded(() => api('alc_driver_save_detector', { p_token: getToken(), p_date: todayStr(), p_valid: valid, p_note: null }), '検知器の確認を記録しました');
   if (r !== undefined) await guarded(drvLoad);
 }
 async function drvConfirm(){
   if (!confirm(`${DRV.y}年${DRV.m}月の記録を確定します。よろしいですか？`)) return;
-  const r = await guarded(() => api('alc_driver_confirm_month', { p_token: lsGet(TOKEN_KEY), p_ym: ymFirst(DRV.y, DRV.m) }), '確定しました');
+  const r = await guarded(() => api('alc_driver_confirm_month', { p_token: getToken(), p_ym: ymFirst(DRV.y, DRV.m) }), '確定しました');
   if (r !== undefined) await guarded(drvLoad);
 }
 async function changePin(){
   const o = $('pm-old').value, n = $('pm-new').value, n2 = $('pm-new2').value;
   if (!/^[0-9]{4,8}$/.test(n)) { toast(ERR.BAD_PIN); return; }
   if (n !== n2) { toast('確認用の暗証番号が一致しません'); return; }
-  const r = await guarded(() => api('alc_driver_change_pin', { p_token: lsGet(TOKEN_KEY), p_old: o, p_new: n }), '暗証番号を変更しました');
+  const r = await guarded(() => api('alc_driver_change_pin', { p_token: getToken(), p_old: o, p_new: n }), '暗証番号を変更しました');
   if (r !== undefined) { ['pm-old','pm-new','pm-new2'].forEach(i => $(i).value = ''); closeModal('pin-modal'); }
 }
 
@@ -496,7 +506,7 @@ async function saveCheck(){
   if (!(p.p_value >= 0 && p.p_value <= 5)) { toast(ERR.BAD_VALUE); return; }
   $('cm-save').disabled = true;
   try {
-    if (CM.who === 'driver') { await api('alc_driver_save_check', { p_token: lsGet(TOKEN_KEY), ...p }); closeModal('check-modal'); toast('記録しました'); await drvLoad(); }
+    if (CM.who === 'driver') { await api('alc_driver_save_check', { p_token: getToken(), ...p }); closeModal('check-modal'); toast('記録しました'); await drvLoad(); }
   } catch (e) { toast(errText(e)); }
   finally { $('cm-save').disabled = false; }
 }
@@ -513,17 +523,20 @@ const MOCK = (() => {
     { id: 'e4', name: '山田 太郎', yomi: 'やまだ', honbu: 'エネルギー事業本部' },
     { id: 'e5', name: '鈴木 花子', yomi: 'すずき', honbu: '環境衛生事業本部' },
     { id: 'e6', name: '副島 次郎', yomi: 'そえじま', honbu: '建設事業本部' },
+    { id: 'e7', name: '練習用アカウント', yomi: 'れんしゅう', honbu: '練習用' },
   ];
   const V = [
     { id: 'v1', label: '鹿児島 な 1295', assignee: '松元 伸孝', model: 'NV150 AD' },
     { id: 'v2', label: '鹿児島 400 な 3790', assignee: '山田 太郎', model: 'プロボックス HV' },
     { id: 'v3', label: '鹿児島 480 さ 2201', assignee: '鈴木 花子', model: 'ハイエース' },
+    { id: 'v9', label: '練習用 00-00', assignee: '練習用アカウント', model: '' },
   ];
   const S = [{ employee_id: 'e1', role: 'admin', honbu: null }, { employee_id: 'e2', role: 'manager', honbu: null }, { employee_id: 'e6', role: 'sub_manager', honbu: '建設事業本部' }];
   const D = [
     { employee_id: 'e3', login_code: '1001', pin: '1234', vehicle_id: 'v1', active: true, default_confirmer: 'e2', default_method: 'ビデオ通話' },
     { employee_id: 'e4', login_code: '1002', pin: '1111', vehicle_id: 'v2', active: true, default_confirmer: 'e2', default_method: '対面' },
     { employee_id: 'e5', login_code: '1003', pin: null, vehicle_id: 'v3', active: true },
+    { employee_id: 'e7', login_code: PRACTICE_CODE, pin: PRACTICE_PIN, vehicle_id: 'v9', active: true, default_confirmer: 'e2', default_method: 'ビデオ通話' },
   ];
   const C = [], X = [], M = [];
   const name = id => (E.find(e => e.id === id) || {}).name;
@@ -535,7 +548,7 @@ const MOCK = (() => {
   for (let back = 40; back >= 0; back--) {
     const s = addDays(t, -back); const w = dowOf(s);
     if (w === 0 || w === 6) continue;
-    D.slice(0, 2).forEach((dr, i) => {
+    [D[0], D[1], D[3]].forEach((dr, i) => { if (i === 2) i = 0;   // 練習用(D[3])は松元さんと同じ形の記録
       if (i === 1 && (back % 9 === 3)) return;              // 山田さんは時々記録なし
       if (back === 0 && i === 0) return;                     // 松元さんの今日はまだ
       [['往路', `0${6}:${pad(rnd(30, 59))}`], ['復路', `${rnd(18, 19)}:${pad(rnd(0, 59))}`]].forEach(([leg, tm]) => {

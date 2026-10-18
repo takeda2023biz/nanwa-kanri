@@ -1003,6 +1003,7 @@ const ALC = (() => {
   async function saveDriver(){
     const code = $('alc-dm-code').value.trim(), pin = $('alc-dm-pin').value.trim();
     if (!/^[0-9]{4,8}$/.test(code)) { msg('ログインIDは4〜8桁の数字にしてください'); return; }
+    if (code === '0000') { msg('0000 は練習用アカウントのIDなので使えません'); return; }
     if (pin && !/^[0-9]{4,8}$/.test(pin)) { msg(ERR.BAD_PIN); return; }
     try {
       await api('alc_admin_save_driver', { p_emp: DM.empId, p_code: code, p_vehicle: $('alc-dm-vehicle').value || null });
