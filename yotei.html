@@ -128,7 +128,8 @@ button,select,input{font-family:inherit;color:inherit;}
     ・日付をタップすると入力欄が開きます。区分が「現場」のときは現場の選択が必須です。<br>
     ・現場の選択肢は「最近入力した現場（直近2か月）」と「担当現場」です。ほかの現場は「すべての現場から選ぶ」にチェックすると選べます。<br>
     ・入力しただけでは保存されません。最後に画面下の「保存」を押してください。<br>
-    ・保存済みのコマを「クリア」して保存すると削除されます。
+    ・保存済みのコマを「クリア」して保存すると削除されます。<br>
+    ・PCとスマホのどちらで入力しても同じ予定に保存されます。開きっぱなしの画面に戻ったときは、自動で最新の内容を読み直します。
   </div>
 </div>
 
@@ -253,7 +254,9 @@ const ST_LABEL = { ok: '保存済', dirty: '変更あり', need: '現場未選�
 function unsavedCount(){ return Object.keys(drafts).filter(k => { const s = statusOf(k); return s === 'dirty' || s === 'need'; }).length; }
 function confirmLeave(){ return !unsavedCount() || confirm('保存していない変更があります。破棄して移動しますか？'); }
 
+let lastLoaded = 0;
 async function loadSchedule(){
+  lastLoaded = Date.now();
   $('month').textContent = `${scYear}年${scMonth}月`;
   saved = {}; drafts = {};
   const n = daysIn(scYear, scMonth);
@@ -556,6 +559,15 @@ $('staff').addEventListener('change', async e => {
   await loadSchedule(); openToday();
 });
 window.addEventListener('beforeunload', e => { if (unsavedCount()) { e.preventDefault(); e.returnValue = ''; } });
+// PC で開きっぱなしの画面に戻ったとき、別の端末（スマホ等）で入力した内容を読み直す
+// （未保存の変更があるときは読み直さない）
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || !scStaff || unsavedCount()) return;
+  if (Date.now() - lastLoaded < 30000) return;
+  const y = window.scrollY;
+  await loadSchedule();
+  window.scrollTo(0, y);
+});
 
 function renderStaffSelect(){
   const sel = $('staff');
