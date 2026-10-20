@@ -86,6 +86,24 @@ table.sched .need{border-color:#e08a2c!important;background:#FFF4E5!important;}
 .err-box{background:#FCEBEB;border:1px solid #F09595;color:#791F1F;border-radius:10px;padding:14px 18px;margin-bottom:16px;font-size:13px;line-height:1.7;display:none;}
 .err-box.show{display:block;}
 .modal.wide{max-width:900px;}
+.modal.xwide{max-width:1480px;}
+/* 請求書 */
+.iv-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:18px;align-items:start;}
+@media(max-width:1100px){.iv-layout{grid-template-columns:1fr;}}
+.iv-pdf{position:sticky;top:0;}
+.iv-drop{border:2px dashed #d8d7d0;border-radius:12px;padding:28px 16px;text-align:center;color:#888;font-size:12px;line-height:1.9;background:#fafaf8;}
+.iv-drop.over{border-color:#2a78d6;background:#eef5fd;color:#2a78d6;}
+.iv-frame{width:100%;height:76vh;border:1px solid #e8e7e0;border-radius:10px;background:#f3f3f0;margin-top:10px;}
+table.iv-lines td{padding:3px 4px;vertical-align:top;}
+table.iv-lines input,table.iv-lines select{height:30px;border:1px solid #d8d7d0;border-radius:6px;padding:0 6px;font-size:12px;font-family:inherit;width:100%;background:#fff;}
+table.iv-lines input.num{text-align:right;}
+table.iv-lines .sub{font-size:10px;color:#888;margin-top:2px;line-height:1.4;white-space:normal;}
+table.iv-lines .sub.warn{color:#9a3412;}
+.iv-check{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-top:8px;padding:8px 12px;border-radius:8px;background:#f9f9f7;}
+.iv-check .ng{color:#b42318;font-weight:700;} .iv-check .ok{color:#1a7f37;font-weight:700;}
+.iv-warn{background:#FFF4E5;border:1px solid #f0c48a;color:#7a3e00;border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.7;margin-bottom:10px;}
+.iv-path{background:#f5f5f3;border:1px solid #e8e7e0;border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.8;margin-top:10px;word-break:break-all;}
+.iv-path code{font-family:monospace;font-size:12px;}
 .sub-tbl{border:1px solid #e8e7e0;border-radius:8px;overflow:hidden;margin-bottom:8px;}
 .sub-tbl table td{padding:5px 8px;}
 .inline-add{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
@@ -129,6 +147,7 @@ table.cf td.ck{width:40px;text-align:center;}
   <button class="nav-btn active" data-page="schedule">予定入力</button>
   <button class="nav-btn" data-page="summary">月次集計</button>
   <button class="nav-btn" data-page="sites">現場マスタ</button>
+  <button class="nav-btn" data-page="invoices">請求書</button>
   <button class="nav-btn" data-page="vendors">取引先マスタ</button>
   <button class="nav-btn" data-page="confirm">確認表</button>
   <button class="nav-btn" data-page="worktypes">作業内容マスタ</button>
@@ -251,6 +270,22 @@ table.cf td.ck{width:40px;text-align:center;}
     <div class="note-box">nanwa-kanri の社員情報のうち、所属が「建設事業本部 工事課」の社員（と予定入力の対象に追加した社員）を表示しています。社員の追加・変更は nanwa-kanri で行ってください。担当現場は、現場マスタの「現場代理人」「担当者」に登録されている進行中の現場です。</div>
   </div>
 
+  <div class="page" id="page-invoices">
+    <div class="controls">
+      <select id="iv-month"></select>
+      <select id="iv-status">
+        <option value="">すべての状態</option><option>下書き</option><option>確認待ち</option><option>確定</option><option>freee済</option>
+      </select>
+      <input class="grow" id="iv-q" type="text" placeholder="取引先・請求書番号・現場コード・担当者で検索">
+      <button class="btn btn-primary" id="iv-new">＋ 請求書を取り込む</button>
+    </div>
+    <div class="tbl-wrap" id="iv-table"></div>
+    <div class="note-box">受領BOX の請求書PDF を開き、明細ごとに <b>現場コード・担当者・税率・税抜金額</b> を入れて保存します（手書きの注記の代わり）。
+      AI下書き（.json）があれば、PDF と一緒にドロップすると自動で埋まります（実証中は Claude が受領BOXの PDF を読んで作成）。<br>
+      保存すると、PDF の <b>ファイル名と格納先</b>（請求書格納／期／現場コード）が表示されます。そのとおりに PDF を移動してください。
+      合計の確認（明細の合計＝請求書の記載）が合わないものは一覧に ⚠ が付きます。</div>
+  </div>
+
   <div class="page" id="page-kintone">
     <div class="controls">
       <input class="grow" id="kn-q" type="text" placeholder="工事番号・工事名・代理人・元請業者・現場名で検索">
@@ -344,6 +379,55 @@ table.cf td.ck{width:40px;text-align:center;}
   </div>
 </div>
 
+<!-- モーダル: 請求書 -->
+<div class="modal-bg" id="iv-modal">
+  <div class="modal xwide">
+    <h2 id="iv-title">請求書の取込</h2>
+    <div class="iv-layout">
+      <div class="iv-pdf">
+        <div class="iv-drop" id="iv-drop">
+          受領BOX の <b>請求書PDF</b> と、同じ名前の <b>AI下書き（.json）</b> をここにドロップ<br>
+          <label class="btn btn-sm" style="display:inline-flex;align-items:center;margin-top:6px;">ファイルを選ぶ<input type="file" id="iv-file" accept=".pdf,.json,application/pdf,application/json" multiple hidden></label>
+          <div style="font-size:11px;margin-top:4px;">PDF はこのパソコンの画面に表示するだけで、どこにも送信・保存されません</div>
+        </div>
+        <iframe class="iv-frame" id="iv-frame" style="display:none" title="請求書PDF"></iframe>
+        <div class="muted" id="iv-fileinfo" style="margin-top:6px;"></div>
+      </div>
+      <div>
+        <div class="iv-warn" id="iv-warn" style="display:none"></div>
+        <div class="form-grid">
+          <div class="form-row"><label>取引先 *</label><input id="if-vendor" list="vendor-list" placeholder="例：株式会社センコウ"><div class="muted" id="if-vendor-match" style="font-size:11px;"></div></div>
+          <div class="form-row"><label>登録番号（インボイス）</label><input id="if-regno" placeholder="T＋13桁"></div>
+          <div class="form-row"><label>請求書番号</label><input id="if-no"></div>
+          <div class="form-row"><label>発行日（締日）</label><input id="if-date" type="date"></div>
+          <div class="form-row"><label>計上月</label><input id="if-month" type="month"></div>
+          <div class="form-row"><label>状態</label><select id="if-status"><option>下書き</option><option>確認待ち</option><option>確定</option><option>freee済</option></select></div>
+          <div class="form-row"><label>税抜合計（請求書の記載）</label><input id="if-subtotal" inputmode="numeric" class="num"></div>
+          <div class="form-row"><label>消費税（請求書の記載）</label><input id="if-tax" inputmode="numeric" class="num"></div>
+          <div class="form-row"><label>今回請求額（税込）</label><input id="if-total" inputmode="numeric" class="num"></div>
+          <div class="form-row"><label>元のファイル名</label><input id="if-file" placeholder="受領BOX でのファイル名"></div>
+          <div class="form-row full"><label>備考</label><textarea id="if-notes"></textarea></div>
+          <div class="form-section">明細（現場コードごと。伝票ごとに分けても可）</div>
+          <div class="form-row full">
+            <div class="tbl-wrap"><table class="iv-lines" id="if-lines"></table></div>
+            <div class="row" style="display:flex;gap:8px;margin-top:6px;"><button class="btn btn-sm" id="if-add">＋ 行を追加</button></div>
+            <div class="iv-check" id="if-check"></div>
+            <div class="iv-path" id="if-path"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="if-save-draft">下書き保存</button>
+      <button class="btn" id="if-save-wait">確認待ちにして保存</button>
+      <button class="btn btn-primary" id="if-save-fix">確定して保存</button>
+      <button class="btn" data-close="iv-modal">閉じる</button>
+      <span class="spacer"></span>
+      <button class="btn btn-danger" id="if-del">削除</button>
+    </div>
+  </div>
+</div>
+<datalist id="iv-code-list"></datalist>
 <datalist id="vendor-list"></datalist>
 <div class="toast" id="toast"></div>
 
@@ -356,7 +440,8 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { db: { schema: 'kensetsu' } });
 
 const PERIODS = ['午前', '午後'];
-const ENTRY_TYPES = ['現場', '本社', '休み', '有給', 'その他'];
+// 区分（2026-10-20「その他」は廃止。計上先が決まらないため。研修・出張等は「本社」＋メモ）
+const ENTRY_TYPES = ['現場', '本社', '休み', '有給'];
 const FREE = '__free__';
 
 // ---- 共通データ ----
@@ -558,7 +643,7 @@ function rowHtml(date, period, dayNum){
     <td class="muted">${period}</td>
     <td><select data-f="entry_type" style="width:84px;">
       <option value="">（未入力）</option>
-      ${ENTRY_TYPES.map(t => `<option${t === r.entry_type ? ' selected' : ''}>${t}</option>`).join('')}
+      ${(r.entry_type && !ENTRY_TYPES.includes(r.entry_type) ? [...ENTRY_TYPES, r.entry_type] : ENTRY_TYPES).map(t => `<option${t === r.entry_type ? ' selected' : ''}>${t}</option>`).join('')}
     </select></td>
     <td><select data-f="site_id" style="width:230px;" ${isGenba ? '' : 'disabled'} class="${st === 'need' ? 'need' : ''}">${isGenba ? siteOptions(r.site_id, date) : '<option value=""></option>'}</select></td>
     <td style="white-space:nowrap;"><select data-f="work_type_id" style="width:150px;" ${noWork ? 'disabled' : ''}>${noWork ? '<option value=""></option>' : wtOptions(r.work_type_id)}</select>
@@ -1337,6 +1422,270 @@ $('kn-sync').addEventListener('click', async () => {
 });
 
 // =====================================================================
+// 請求書（取引先からの請求書の取込）
+// =====================================================================
+let INVOICES = [], IV_LINES = [], IV_OK = true;
+let ivEditId = null, ivDraft = null, ivPdfUrl = null, ivRows = [];
+const IV_STATUS_BADGE = { '下書き': 'b-gray', '確認待ち': 'b-amber', '確定': 'b-green', 'freee済': 'b-blue' };
+const nzs = t => String(t || '').normalize('NFKC').replace(/\s/g, '').toLowerCase();
+const numv = v => { const x = String(v ?? '').replace(/[,，\s円¥￥]/g, ''); return x === '' || isNaN(x) ? null : Number(x); };
+const fmt = v => v == null || v === '' ? '' : Number(v).toLocaleString('ja-JP');
+
+async function loadInvoices(){
+  const [iv, ln] = await Promise.all([
+    sb.from('invoices').select('*').order('issue_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }),
+    sb.from('invoice_lines').select('*').order('line_no'),
+  ]);
+  IV_OK = !iv.error;
+  if (iv.error) { $('iv-table').innerHTML = '<div class="hint">請求書の表（sql/15_invoices.sql）がまだ作成されていません。</div>'; return false; }
+  INVOICES = iv.data; IV_LINES = ln.data || [];
+  return true;
+}
+function codeRow(code){ return CODES.find(c => c.code === String(code || '').trim()); }
+function siteOfCode(code){ const c = codeRow(code); return c ? siteById(c.site_id) : null; }
+function termOfCode(code){ const c = codeRow(code); if (c && c.ledger_term) return c.ledger_term; return code ? String(code).substr(1, 2) + '期' : ''; }
+function vendorShort(name){ return String(name || '').replace(/株式会社|有限会社|合同会社|\(株\)|（株）|㈱|\(有\)|（有）|㈲/g, '').replace(/\s|　/g, '').replace(/[\\/:*?"<>|]/g, '') || '取引先'; }
+function matchVendor(name){
+  const n = nzs(name).replace(/株式会社|有限会社|\(株\)|㈱|\(有\)|㈲/g, '');
+  if (!n) return null;
+  return VENDORS.find(v => [v.name, ...(v.aliases || [])].some(a => { const x = nzs(a).replace(/株式会社|有限会社|\(株\)|㈱|\(有\)|㈲/g, ''); return x && (x === n || n.startsWith(x) || x.startsWith(n)); })) || null;
+}
+function matchPerson(name){
+  const n = nzs(name).replace(/様|さん/g, '');
+  if (!n) return null;
+  const hit = HONBU.filter(h => nzs(h.name).startsWith(n) || nzs(h.name) === n);
+  return hit.length === 1 ? hit[0] : null;
+}
+function ivPeopleFor(code){   // その現場の現場代理人・担当者を先頭に
+  const site = siteOfCode(code);
+  const ids = site ? [...new Set([...MANAGERS, ...MEMBERS].filter(m => m.site_id === site.id).map(m => m.employee_id))] : [];
+  const first = HONBU.filter(h => ids.includes(h.id)), rest = HONBU.filter(h => !ids.includes(h.id));
+  return { first, rest };
+}
+
+function renderInvoices(){
+  if (!IV_OK) return;
+  const months = [...new Set(INVOICES.map(i => (i.billing_month || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+  const msel = $('iv-month'); const cur = msel.value;
+  msel.innerHTML = '<option value="">すべての月</option>' + months.map(m => `<option value="${m}" ${m === cur ? 'selected' : ''}>${m.replace('-', '年')}月計上</option>`).join('');
+  const q = $('iv-q').value.trim().toLowerCase(), st = $('iv-status').value, mo = msel.value;
+  const list = INVOICES.filter(i => {
+    if (st && i.status !== st) return false;
+    if (mo && (i.billing_month || '').slice(0, 7) !== mo) return false;
+    if (!q) return true;
+    const ls = IV_LINES.filter(l => l.invoice_id === i.id);
+    return [i.vendor_name, i.invoice_no, i.original_file, ...ls.map(l => l.site_code), ...ls.map(l => staffName(l.employee_id))].join(' ').toLowerCase().includes(q);
+  });
+  $('iv-table').innerHTML = `<table><thead><tr><th>発行日</th><th>取引先</th><th>請求書番号</th><th class="num">税抜</th><th class="num">税込</th><th>現場コード</th><th>担当者</th><th>状態</th><th>確認</th><th>格納先</th></tr></thead><tbody>${
+    list.map(i => {
+      const ls = IV_LINES.filter(l => l.invoice_id === i.id);
+      const codes = [...new Set(ls.map(l => l.site_code || '未割当'))];
+      const people = [...new Set(ls.filter(l => l.employee_id).map(l => staffName(l.employee_id)))];
+      const sa = ls.reduce((a, l) => a + Number(l.amount || 0), 0), stx = ls.reduce((a, l) => a + Number(l.tax || 0), 0);
+      const ok = ls.length && !ls.some(l => !l.site_code) && (i.subtotal == null || sa === Number(i.subtotal)) && (i.tax == null || stx === Number(i.tax));
+      return `<tr class="clickable" data-id="${i.id}"><td>${esc(i.issue_date || '')}</td><td><b>${esc(i.vendor_name)}</b></td><td class="mono">${esc(i.invoice_no || '')}</td>
+        <td class="num">${fmt(sa)}</td><td class="num">${fmt(i.total)}</td>
+        <td>${codes.map(c => `<span class="badge ${c === '未割当' ? 'b-red' : 'b-blue'} mono">${esc(c)}</span>`).join(' ')}</td>
+        <td>${esc(people.join('、'))}</td><td><span class="badge ${IV_STATUS_BADGE[i.status] || 'b-gray'}">${esc(i.status)}</span></td>
+        <td>${ok ? '<span class="muted">OK</span>' : '<span title="明細の合計が請求書の記載と合わない、または現場コード未割当の行があります">⚠</span>'}</td>
+        <td class="muted" style="white-space:normal;max-width:260px;font-size:11px;">${esc(i.pdf_path || '')}</td></tr>`;
+    }).join('') || '<tr><td colspan="10" class="hint">請求書はまだありません。「＋ 請求書を取り込む」から登録してください。</td></tr>'
+  }</tbody></table><div class="hint">${list.length} 件</div>`;
+}
+$('iv-q').addEventListener('input', renderInvoices);
+$('iv-status').addEventListener('change', renderInvoices);
+$('iv-month').addEventListener('change', renderInvoices);
+$('iv-table').addEventListener('click', e => { const tr = e.target.closest('tr[data-id]'); if (tr) openIvModal(tr.dataset.id); });
+$('iv-new').addEventListener('click', () => openIvModal(null));
+
+function ivFillCodeList(){
+  $('iv-code-list').innerHTML = CODES.filter(c => c.status === '有効').map(c => { const s = siteById(c.site_id); return `<option value="${esc(c.code)}">${esc(s ? s.site_name : '')}</option>`; }).join('');
+}
+function openIvModal(id){
+  ivEditId = id; ivDraft = null;
+  ivFillCodeList();
+  if (ivPdfUrl) { URL.revokeObjectURL(ivPdfUrl); ivPdfUrl = null; }
+  $('iv-frame').style.display = 'none'; $('iv-frame').src = 'about:blank'; $('iv-drop').style.display = '';
+  $('iv-fileinfo').textContent = ''; $('iv-warn').style.display = 'none';
+  const i = id ? INVOICES.find(x => x.id === id) : {};
+  $('iv-title').textContent = id ? '請求書の編集' : '請求書の取込';
+  $('if-vendor').value = i.vendor_name || ''; $('if-regno').value = i.registration_no || ''; $('if-no').value = i.invoice_no || '';
+  $('if-date').value = i.issue_date || ''; $('if-month').value = (i.billing_month || '').slice(0, 7);
+  $('if-status').value = i.status || '下書き';
+  $('if-subtotal').value = fmt(i.subtotal); $('if-tax').value = fmt(i.tax); $('if-total').value = fmt(i.total);
+  $('if-file').value = i.original_file || ''; $('if-notes').value = i.notes || '';
+  ivRows = id ? IV_LINES.filter(l => l.invoice_id === id).map(l => ({ ...l })) : [{ site_code: '', employee_id: '', tax_rate: 10, amount: null, tax: null, slip_no: '', slip_date: '', item: '', ai_hint: '' }];
+  if (id && i.ai_draft && i.ai_draft.warnings && i.ai_draft.warnings.length) showIvWarn(i.ai_draft.warnings);
+  if (id && i.pdf_path) $('iv-fileinfo').innerHTML = `格納先: <code>${esc(i.pdf_path)}</code><br>PDF を見るには、格納先のファイルをここにドロップしてください。`;
+  $('if-del').style.display = id ? '' : 'none';
+  renderIvLines(); ivVendorMatch(); openModal('iv-modal');
+}
+function showIvWarn(ws){ $('iv-warn').innerHTML = '<b>AI からの注意</b><br>' + ws.map(w => '・' + esc(w)).join('<br>'); $('iv-warn').style.display = ''; }
+function ivVendorMatch(){
+  const v = matchVendor($('if-vendor').value);
+  $('if-vendor-match').innerHTML = !$('if-vendor').value.trim() ? '' : v ? `取引先マスタ: <b>${esc(v.name)}</b>` : '<span style="color:#9a3412">取引先マスタに未登録（このまま保存できます）</span>';
+}
+$('if-vendor').addEventListener('input', () => { ivVendorMatch(); ivUpdateCheck(); });
+['if-subtotal', 'if-tax', 'if-total', 'if-date', 'if-month'].forEach(x => $(x).addEventListener('input', ivUpdateCheck));
+$('if-date').addEventListener('change', () => { if (!$('if-month').value && $('if-date').value) $('if-month').value = $('if-date').value.slice(0, 7); ivUpdateCheck(); });
+
+function renderIvLines(){
+  const optsPeople = code => { const { first, rest } = ivPeopleFor(code);
+    const o = h => `<option value="${h.id}">${esc(h.name)}</option>`;
+    return '<option value="">（担当者）</option>' + (first.length ? `<optgroup label="この現場の担当">${first.map(o).join('')}</optgroup><optgroup label="その他">${rest.map(o).join('')}</optgroup>` : rest.map(o).join('')); };
+  $('if-lines').innerHTML = `<thead><tr><th style="width:110px">現場コード</th><th style="width:130px">担当者</th><th style="width:62px">税率</th><th class="num" style="width:110px">税抜金額</th><th class="num" style="width:90px">消費税</th><th style="width:90px">伝票No</th><th>品名・摘要</th><th style="width:28px"></th></tr></thead><tbody>${
+    ivRows.map((r, i) => { const site = siteOfCode(r.site_code);
+      return `<tr data-i="${i}">
+        <td><input data-f="site_code" list="iv-code-list" value="${esc(r.site_code || '')}" placeholder="148001">
+          <div class="sub ${r.site_code && !site ? 'warn' : ''}">${r.site_code ? (site ? esc(site.site_name) + (site.status !== '進行中' ? '（' + esc(site.status) + '）' : '') : '現場コードが見つかりません') : '<span class="warn">未割当</span>'}</div></td>
+        <td><select data-f="employee_id">${optsPeople(r.site_code)}</select>${r._person_hint ? `<div class="sub warn">AI: ${esc(r._person_hint)}</div>` : ''}</td>
+        <td><select data-f="tax_rate"><option value="10">10%</option><option value="8">8%</option><option value="0">対象外</option></select></td>
+        <td><input data-f="amount" class="num" inputmode="numeric" value="${fmt(r.amount)}"></td>
+        <td><input data-f="tax" class="num" inputmode="numeric" value="${fmt(r.tax)}"></td>
+        <td><input data-f="slip_no" value="${esc(r.slip_no || '')}"></td>
+        <td><input data-f="item" value="${esc(r.item || '')}">${r.ai_hint ? `<div class="sub">AI: ${esc(r.ai_hint)}</div>` : ''}</td>
+        <td><button class="btn btn-sm" data-del="${i}" title="行を削除">×</button></td></tr>`; }).join('')
+  }</tbody>`;
+  $('if-lines').querySelectorAll('tr[data-i]').forEach(tr => {
+    const r = ivRows[tr.dataset.i];
+    tr.querySelector('[data-f="employee_id"]').value = r.employee_id || '';
+    tr.querySelector('[data-f="tax_rate"]').value = String(r.tax_rate ?? 10);
+  });
+  ivUpdateCheck();
+}
+$('if-lines').addEventListener('input', e => {
+  const tr = e.target.closest('tr[data-i]'); if (!tr) return;
+  const r = ivRows[tr.dataset.i], f = e.target.dataset.f;
+  if (f === 'amount' || f === 'tax') r[f] = numv(e.target.value);
+  else if (f === 'tax_rate') r[f] = Number(e.target.value);
+  else r[f] = e.target.value;
+  if (f === 'amount' || f === 'tax_rate') {   // 消費税を自動計算（手で直した値は、金額か税率を変えたときだけ上書き）
+    r.tax = r.amount == null ? null : Math.floor(r.amount * (r.tax_rate ?? 10) / 100);
+    tr.querySelector('[data-f="tax"]').value = fmt(r.tax);
+  }
+  if (f === 'employee_id') r._person_hint = '';
+  ivUpdateCheck();
+});
+$('if-lines').addEventListener('change', e => {
+  const tr = e.target.closest('tr[data-i]'); if (!tr) return;
+  if (e.target.dataset.f === 'site_code') {   // 現場コードを変えたら、担当者の候補を並べ替えて再表示
+    const r = ivRows[tr.dataset.i]; r.site_code = e.target.value.trim();
+    if (!r.employee_id) { const { first } = ivPeopleFor(r.site_code); if (first.length === 1) r.employee_id = first[0].id; }
+    renderIvLines();
+  }
+});
+$('if-lines').addEventListener('click', e => { const d = e.target.closest('[data-del]'); if (!d) return; ivRows.splice(Number(d.dataset.del), 1); if (!ivRows.length) ivRows.push({ tax_rate: 10 }); renderIvLines(); });
+$('if-add').addEventListener('click', () => { const last = ivRows[ivRows.length - 1] || {}; ivRows.push({ site_code: last.site_code || '', employee_id: last.employee_id || '', tax_rate: last.tax_rate ?? 10, amount: null, tax: null }); renderIvLines(); });
+
+function ivMainCode(){
+  const by = {}; ivRows.forEach(r => { if (r.site_code) by[r.site_code] = (by[r.site_code] || 0) + Number(r.amount || 0); });
+  return Object.entries(by).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+}
+function ivPdfPath(){
+  const code = ivMainCode(), d = ($('if-date').value || '').replace(/-/g, '');
+  const name = `${code || '未割当'}_${vendorShort($('if-vendor').value)}_${d || '日付なし'}.pdf`;
+  return code ? `請求書格納/${termOfCode(code)}/${code}/${name}` : `請求書格納/未割当/${name}`;
+}
+function ivUpdateCheck(){
+  const sa = ivRows.reduce((a, r) => a + Number(r.amount || 0), 0), st = ivRows.reduce((a, r) => a + Number(r.tax || 0), 0);
+  const hs = numv($('if-subtotal').value), ht = numv($('if-tax').value), hT = numv($('if-total').value);
+  const c = (label, a, b) => b == null ? `<span>${label}: 明細 ${fmt(a)}（請求書の記載なし）</span>` : `<span>${label}: 明細 ${fmt(a)} ／ 請求書 ${fmt(b)} ${a === b ? '<span class="ok">一致</span>' : `<span class="ng">差 ${fmt(a - b)}</span>`}</span>`;
+  const un = ivRows.filter(r => !r.site_code).length, bad = ivRows.filter(r => r.site_code && !siteOfCode(r.site_code)).length;
+  $('if-check').innerHTML = c('税抜', sa, hs) + c('消費税', st, ht) + c('税込', sa + st, hT)
+    + (un ? `<span class="ng">現場コード未割当 ${un} 行</span>` : '') + (bad ? `<span class="ng">存在しない現場コード ${bad} 行</span>` : '');
+  const codes = [...new Set(ivRows.map(r => r.site_code).filter(Boolean))];
+  $('if-path').innerHTML = `<b>PDF の格納先</b>（保存後、このとおりに 受領BOX から移動してください）<br><code id="if-path-text">${esc(ivPdfPath())}</code>
+    <button class="btn btn-sm" id="if-copy" style="margin-left:6px;">コピー</button>`
+    + (codes.length > 1 ? `<br><span class="muted">複数の現場コードを含む請求書は、金額が最も大きい現場コード（${esc(ivMainCode())}）のフォルダに置きます。</span>` : '');
+  $('if-copy').onclick = async () => { try { await navigator.clipboard.writeText(ivPdfPath().replace(/\//g, '\\')); toast('格納先をコピーしました'); } catch (e) { toast('コピーできませんでした'); } };
+}
+
+// ---- ファイルの受け取り（PDF は表示のみ、JSON は下書きとして読み込み） ----
+async function ivTakeFiles(files){
+  for (const f of files) {
+    if (/\.json$/i.test(f.name) || f.type === 'application/json') {
+      try { ivApplyDraft(JSON.parse(await f.text()), f.name); } catch (e) { alert('AI下書き（JSON）を読み込めませんでした: ' + e.message); }
+    } else if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
+      if (ivPdfUrl) URL.revokeObjectURL(ivPdfUrl);
+      ivPdfUrl = URL.createObjectURL(f);
+      $('iv-frame').src = ivPdfUrl; $('iv-frame').style.display = ''; $('iv-drop').style.display = 'none';
+      $('iv-fileinfo').innerHTML = `表示中: <b>${esc(f.name)}</b> <button class="btn btn-sm" id="iv-change">別のファイル</button>`;
+      $('iv-change').onclick = () => { $('iv-drop').style.display = ''; };
+      if (!$('if-file').value) $('if-file').value = f.name;
+    }
+  }
+}
+function ivApplyDraft(d, fname){
+  if (!d || !String(d.schema || '').startsWith('nanwa-invoice-draft')) { alert('AI下書きの形式ではありません'); return; }
+  ivDraft = d;
+  $('if-vendor').value = d.vendor_name || ''; $('if-regno').value = d.registration_no || ''; $('if-no').value = d.invoice_no || '';
+  $('if-date').value = d.issue_date || ''; $('if-month').value = (d.issue_date || '').slice(0, 7);
+  $('if-subtotal').value = fmt(d.subtotal); $('if-tax').value = fmt(d.tax); $('if-total').value = fmt(d.total);
+  $('if-notes').value = d.notes || ''; if (d.file) $('if-file').value = d.file;
+  ivRows = (d.lines || []).map(l => { const p = matchPerson(l.person);
+    return { site_code: l.site_code || '', employee_id: p ? p.id : '', _person_hint: l.person && !p ? `「${l.person}」を社員に照合できません` : '',
+      tax_rate: l.tax_rate ?? 10, amount: l.amount ?? null, tax: l.tax ?? (l.amount != null ? Math.floor(l.amount * (l.tax_rate ?? 10) / 100) : null),
+      slip_no: l.slip_no || '', slip_date: l.slip_date || '', item: l.item || '', ai_hint: l.hint || '' }; });
+  if (!ivRows.length) ivRows = [{ tax_rate: 10 }];
+  $('iv-warn').style.display = 'none'; if (d.warnings && d.warnings.length) showIvWarn(d.warnings);
+  ivVendorMatch(); renderIvLines(); toast('AI下書きを読み込みました（' + fname + '）。内容を確認してください');
+}
+const ivDrop = $('iv-drop');
+['dragenter', 'dragover'].forEach(ev => ivDrop.addEventListener(ev, e => { e.preventDefault(); ivDrop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => ivDrop.addEventListener(ev, e => { e.preventDefault(); ivDrop.classList.remove('over'); }));
+ivDrop.addEventListener('drop', e => ivTakeFiles([...e.dataTransfer.files]));
+$('iv-modal').addEventListener('dragover', e => e.preventDefault());
+$('iv-modal').addEventListener('drop', e => { if (e.target.closest('#iv-drop')) return; e.preventDefault(); ivTakeFiles([...e.dataTransfer.files]); });
+$('iv-file').addEventListener('change', e => { ivTakeFiles([...e.target.files]); e.target.value = ''; });
+
+// ---- 保存 ----
+async function ivSave(status){
+  const vendor = $('if-vendor').value.trim();
+  if (!vendor) { alert('取引先を入力してください'); return; }
+  const lines = ivRows.filter(r => r.site_code || r.amount != null || r.item);
+  if (status === '確定') {
+    if (lines.some(r => !r.site_code)) { alert('現場コードが未割当の行があるため確定できません'); return; }
+    if (lines.some(r => !siteOfCode(r.site_code))) { alert('存在しない現場コードの行があるため確定できません'); return; }
+    const sa = lines.reduce((a, r) => a + Number(r.amount || 0), 0), st = lines.reduce((a, r) => a + Number(r.tax || 0), 0);
+    const hs = numv($('if-subtotal').value), ht = numv($('if-tax').value);
+    if ((hs != null && sa !== hs) || (ht != null && st !== ht)) { if (!confirm('明細の合計が請求書の記載と一致していません。このまま確定しますか？')) return; }
+  }
+  const v = matchVendor(vendor);
+  const d = { vendor_name: vendor, vendor_id: v ? v.id : null, registration_no: $('if-regno').value.trim() || null, invoice_no: $('if-no').value.trim() || null,
+    issue_date: $('if-date').value || null, billing_month: $('if-month').value ? $('if-month').value + '-01' : ($('if-date').value ? $('if-date').value.slice(0, 7) + '-01' : null),
+    subtotal: numv($('if-subtotal').value), tax: numv($('if-tax').value), total: numv($('if-total').value),
+    original_file: $('if-file').value.trim() || null, pdf_path: ivPdfPath(), status, notes: $('if-notes').value.trim() || null };
+  if (ivDraft) d.ai_draft = ivDraft;
+  if (status === '確定') d.confirmed_at = new Date().toISOString();
+  const res = ivEditId ? await sb.from('invoices').update(d).eq('id', ivEditId).select().single() : await sb.from('invoices').insert(d).select().single();
+  if (res.error) { alert(plain(res.error)); return; }
+  const id = res.data.id;
+  const del = await sb.from('invoice_lines').delete().eq('invoice_id', id);
+  if (del.error) { alert(plain(del.error)); return; }
+  if (lines.length) {
+    const rows = lines.map((r, i) => { const s = siteOfCode(r.site_code);
+      return { invoice_id: id, line_no: i + 1, site_code: r.site_code || null, site_id: s ? s.id : null, employee_id: r.employee_id || null,
+        tax_rate: r.tax_rate ?? 10, amount: r.amount ?? 0, tax: r.tax ?? 0, slip_no: r.slip_no || null, slip_date: r.slip_date || null, item: r.item || null, ai_hint: r.ai_hint || null }; });
+    const ins = await sb.from('invoice_lines').insert(rows);
+    if (ins.error) { alert(plain(ins.error)); return; }
+  }
+  ivEditId = id;
+  await loadInvoices(); renderInvoices();
+  $('if-status').value = status; $('if-del').style.display = '';
+  toast(`保存しました（${status}）。PDF を「${ivPdfPath()}」へ移動してください`);
+}
+$('if-save-draft').addEventListener('click', () => ivSave('下書き'));
+$('if-save-wait').addEventListener('click', () => ivSave('確認待ち'));
+$('if-save-fix').addEventListener('click', () => ivSave('確定'));
+$('if-del').addEventListener('click', async () => {
+  if (!ivEditId || !confirm('この請求書の登録を削除しますか？（PDF ファイルは削除されません）')) return;
+  const { error } = await sb.from('invoices').delete().eq('id', ivEditId);
+  if (error) { alert(plain(error)); return; }
+  closeModal('iv-modal'); await loadInvoices(); renderInvoices(); toast('削除しました');
+});
+async function openInvoicesPage(){ if (await loadInvoices()) renderInvoices(); }
+
+// =====================================================================
 // 画面切替・起動
 // =====================================================================
 let currentPage = 'schedule';
@@ -1348,6 +1697,7 @@ function renderPage(page){
   if (page === 'confirm') renderConfirm();
   if (page === 'staff') renderStaff();
   if (page === 'kintone') loadKintonePage();
+  if (page === 'invoices') openInvoicesPage();
 }
 document.querySelectorAll('.nav-btn').forEach(b => b.addEventListener('click', () => {
   const page = b.dataset.page;

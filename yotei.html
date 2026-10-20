@@ -69,7 +69,7 @@ button,select,input{font-family:inherit;color:inherit;}
 .koma-h .st{font-size:11px;font-weight:600;}
 .st-ok{color:#27500A;}.st-dirty{color:#633806;}.st-need{color:#b91c1c;}.st-empty{color:#bbb;}
 .koma-h .clear{margin-left:auto;font-size:12px;color:#888;background:none;border:none;text-decoration:underline;cursor:pointer;padding:4px;}
-.seg{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:8px;}
+.seg{display:grid;grid-template-columns:repeat(var(--n,4),1fr);gap:4px;margin-bottom:8px;}
 .seg button{height:40px;border:1px solid #d8d7d0;background:#fff;border-radius:8px;font-size:13px;cursor:pointer;padding:0;}
 .seg button.on{background:#1a1a1a;color:#fff;border-color:#1a1a1a;font-weight:700;}
 .fld{display:block;margin-bottom:8px;}
@@ -90,35 +90,35 @@ button,select,input{font-family:inherit;color:inherit;}
 .toast.show{opacity:1;}
 .hint{font-size:11px;color:#888;line-height:1.8;padding:8px 2px 16px;}
 .loading{text-align:center;color:#999;padding:40px 0;}
-/* 印刷（その月の予定表） */
-#print-area{display:none;}
+/* 印刷（その月の予定表）。A4縦の印刷可能範囲 190mm×277mm に収め、はみ出す場合は自動で縮小 */
+#print-area{display:none;width:190mm;font-size:9pt;color:#000;background:#fff;font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;}
+#print-area.measure{display:block;position:absolute;left:-10000px;top:0;}
+#print-area .pr-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:3mm;}
+#print-area .pr-title{font-size:14pt;font-weight:700;}
+#print-area .pr-sub{font-size:9pt;}
+#print-area table.pr{width:100%;border-collapse:collapse;table-layout:fixed;}
+#print-area table.pr th,#print-area table.pr td{border:1px solid #000;padding:1px 4px;vertical-align:top;line-height:1.3;word-break:break-all;}
+#print-area table.pr th{background:#eee;font-weight:700;font-size:8.5pt;text-align:center;}
+#print-area table.pr td.d{text-align:center;white-space:nowrap;}
+#print-area table.pr tr.off td.d{color:#b45309;}
+#print-area table.pr td .w{font-size:7.5pt;color:#333;}
+#print-area table.pr td.blank{color:#999;}
+#print-area .pr-foot{margin-top:3mm;}
+#print-area .pr-sum{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid #000;border-left:1px solid #000;}
+#print-area .pr-sum div{display:flex;justify-content:space-between;gap:4px;border-right:1px solid #000;border-bottom:1px solid #000;padding:1px 6px;font-size:8.5pt;}
+#print-area .pr-sum div.h{background:#eee;font-weight:700;}
+#print-area .pr-sum b{white-space:nowrap;}
+#print-area .pr-foot table{border-collapse:collapse;}
+#print-area .pr-foot td,#print-area .pr-foot th{border:1px solid #000;padding:1px 6px;font-size:8.5pt;}
+#print-area .pr-foot th{background:#eee;}
+#print-area .pr-foot td.v{text-align:right;white-space:nowrap;}
+#print-area .pr-note{font-size:7.5pt;color:#333;margin-top:2mm;}
 @media print{
   @page{size:A4 portrait;margin:10mm;}
   body{background:#fff;padding:0;}
   body > *:not(#print-area){display:none!important;}
-  #print-area{display:block;font-size:9pt;color:#000;}
-  .pr-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4mm;}
-  .pr-title{font-size:14pt;font-weight:700;}
-  .pr-sub{font-size:9pt;}
-  .pr-stamps{display:flex;border:1px solid #000;}
-  .pr-stamps div{width:18mm;text-align:center;font-size:8pt;border-left:1px solid #000;}
-  .pr-stamps div:first-child{border-left:none;}
-  .pr-stamps span{display:block;border-bottom:1px solid #000;padding:1px 0;}
-  .pr-stamps i{display:block;height:13mm;}
-  table.pr{width:100%;border-collapse:collapse;table-layout:fixed;}
-  table.pr th,table.pr td{border:1px solid #000;padding:1px 4px;vertical-align:top;line-height:1.3;}
-  table.pr th{background:#eee;font-weight:700;font-size:8.5pt;text-align:center;}
-  table.pr td.d{text-align:center;white-space:nowrap;}
-  table.pr tr.off td.d{color:#b45309;}
-  table.pr td .w{font-size:7.5pt;color:#333;}
-  table.pr td.blank{color:#999;}
-  table.pr tr{break-inside:avoid;}
-  .pr-foot{display:flex;gap:6mm;margin-top:4mm;align-items:flex-start;}
-  .pr-foot table{border-collapse:collapse;}
-  .pr-foot td,.pr-foot th{border:1px solid #000;padding:1px 6px;font-size:8.5pt;}
-  .pr-foot th{background:#eee;}
-  .pr-foot td.v{text-align:right;white-space:nowrap;}
-  .pr-note{font-size:7.5pt;color:#333;margin-top:2mm;}
+  #print-area{display:block;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  #print-area table.pr tr{break-inside:avoid;}
 }
 </style>
 </head>
@@ -183,7 +183,10 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { db: { schema: 'kensetsu' } });
 
 const PERIODS = ['午前', '午後'];
-const ENTRY_TYPES = ['現場', '本社', '休み', '有給', 'その他'];
+// 区分（2026-10-20「その他」は廃止。計上先が決まらないため。研修・出張等は「本社」＋メモ）
+const ENTRY_TYPES = ['現場', '本社', '休み', '有給'];
+// 廃止した区分が保存済みの場合も表示できるようにする
+function typesFor(r){ return !r.entry_type || ENTRY_TYPES.includes(r.entry_type) ? ENTRY_TYPES : [...ENTRY_TYPES, r.entry_type]; }
 const FREE = '__free__';
 const STAFF_KEY = 'kensetsu.yotei.staff';   // この端末で最後に選んだ担当者
 const RECENT_MAX = 8;
@@ -373,7 +376,7 @@ function komaHtml(date, period){
   return `<div class="koma" data-key="${key}">
     <div class="koma-h">${period}<span class="st st-${st}">${ST_LABEL[st]}</span>
       ${isBlank(r) ? '' : '<button class="clear" data-act="clear">クリア</button>'}</div>
-    <div class="seg">${ENTRY_TYPES.map(t => `<button type="button" data-act="type" data-v="${t}" class="${t === r.entry_type ? 'on' : ''}">${t}</button>`).join('')}</div>
+    <div class="seg" style="--n:${typesFor(r).length}">${typesFor(r).map(t => `<button type="button" data-act="type" data-v="${t}" class="${t === r.entry_type ? 'on' : ''}">${t}</button>`).join('')}</div>
     ${isGenba ? `<label class="fld"><span>現場（マスタから選択）</span><select data-f="site_id" class="${st === 'need' ? 'need' : ''}">${siteOptions(r.site_id, date)}</select></label>` : ''}
     ${hasWork ? `<label class="fld"><span>作業内容</span><select data-f="work_type_id">${wtOptions(r.work_type_id)}</select>
       ${r.work_type_id === FREE ? `<input class="free" data-f="work_type_free" placeholder="作業内容を入力" value="${esc(r.work_type_free)}">` : ''}</label>` : ''}
@@ -586,26 +589,44 @@ function buildPrint(){
     else label = r.entry_type;
     counts[label] = (counts[label] || 0) + 0.5;
   });
-  const sumRows = Object.entries(counts).sort((a, b) => b[1] - a[1])
-    .map(([k, v]) => `<tr><td>${esc(k)}</td><td class="v">${fmtDays(v)}日</td></tr>`).join('');
+  const sumItems = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `<div><span>${esc(k)}</span><b>${fmtDays(v)}日</b></div>`);
+  const head = [`<div class="h"><span>出勤扱い</span><b>${fmtDays(work)}日</b></div>`];
+  if (empty) head.push(`<div class="h"><span>平日の未入力</span><b>${fmtDays(empty)}日分</b></div>`);
+  while (head.length < 3) head.push('<div class="h"><span></span></div>');
+  const cells = sumItems.concat(sumItems.length ? [] : ['<div><span>入力なし</span></div>']);
+  while (cells.length % 3) cells.push('<div><span></span></div>');
   const now = new Date();
   $('print-area').innerHTML = `
     <div class="pr-head">
       <div><div class="pr-title">予定表（業務日報） ${scYear}年${scMonth}月</div>
         <div class="pr-sub">氏名：${esc(staffName(scStaff))}　／　建設事業本部 工事課　／　印刷日：${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}</div></div>
-      <div class="pr-stamps"><div><span>本人</span><i></i></div><div><span>確認</span><i></i></div></div>
     </div>
     <table class="pr">
       <colgroup><col style="width:15%"><col style="width:32%"><col style="width:32%"><col style="width:21%"></colgroup>
       <thead><tr><th>日付</th><th>午前（現場・区分／作業内容）</th><th>午後（現場・区分／作業内容）</th><th>メモ</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <div class="pr-foot">
-      <table><thead><tr><th>現場・区分</th><th>日数</th></tr></thead><tbody>${sumRows || '<tr><td colspan="2">入力なし</td></tr>'}</tbody></table>
-      <table><tbody><tr><th>出勤扱い</th><td class="v">${fmtDays(work)}日</td></tr>
-        ${empty ? `<tr><th>平日の未入力</th><td class="v">${fmtDays(empty)}日分</td></tr>` : ''}</tbody></table>
-    </div>
-    <div class="pr-note">1コマ（午前または午後）＝0.5日で集計。出勤扱い＝現場・本社・その他。</div>`;
+    <div class="pr-foot"><div class="pr-sum">${head.join('')}${cells.join('')}</div></div>
+    <div class="pr-note">1コマ（午前または午後）＝0.5日で集計。出勤扱い＝現場・本社。</div>`;
+  fitToPage();
+}
+// 内容が多い月でもA4縦1枚に収まるよう、高さを測って縮小する
+function fitToPage(){
+  const el = $('print-area');
+  el.style.zoom = ''; el.style.width = '';
+  el.classList.add('measure');
+  const mm = 96 / 25.4;
+  const maxH = 275 * mm;            // 印刷可能範囲 277mm から少し余裕をとる
+  // 縮小しても横幅いっぱいに使う（幅を広げると折り返しが減り、高さも縮む）ため、
+  // 収まる最大の倍率を二分探索で求める
+  const heightAt = z => { el.style.zoom = String(z); el.style.width = (190 / z) + 'mm'; return el.getBoundingClientRect().height; };
+  if (heightAt(1) > maxH) {
+    let lo = 0.3, hi = 1;
+    for (let i = 0; i < 10; i++) { const mid = (lo + hi) / 2; if (heightAt(mid) <= maxH) lo = mid; else hi = mid; }
+    heightAt(Math.floor(lo * 1000) / 1000);
+  } else { el.style.zoom = ''; el.style.width = ''; }
+  el.classList.remove('measure');
 }
 $('print-btn').addEventListener('click', () => {
   if (!scStaff) { alert('担当者を選択してください'); return; }
