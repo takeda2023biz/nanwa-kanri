@@ -90,6 +90,36 @@ button,select,input{font-family:inherit;color:inherit;}
 .toast.show{opacity:1;}
 .hint{font-size:11px;color:#888;line-height:1.8;padding:8px 2px 16px;}
 .loading{text-align:center;color:#999;padding:40px 0;}
+/* 印刷（その月の予定表） */
+#print-area{display:none;}
+@media print{
+  @page{size:A4 portrait;margin:10mm;}
+  body{background:#fff;padding:0;}
+  body > *:not(#print-area){display:none!important;}
+  #print-area{display:block;font-size:9pt;color:#000;}
+  .pr-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:4mm;}
+  .pr-title{font-size:14pt;font-weight:700;}
+  .pr-sub{font-size:9pt;}
+  .pr-stamps{display:flex;border:1px solid #000;}
+  .pr-stamps div{width:18mm;text-align:center;font-size:8pt;border-left:1px solid #000;}
+  .pr-stamps div:first-child{border-left:none;}
+  .pr-stamps span{display:block;border-bottom:1px solid #000;padding:1px 0;}
+  .pr-stamps i{display:block;height:13mm;}
+  table.pr{width:100%;border-collapse:collapse;table-layout:fixed;}
+  table.pr th,table.pr td{border:1px solid #000;padding:1px 4px;vertical-align:top;line-height:1.3;}
+  table.pr th{background:#eee;font-weight:700;font-size:8.5pt;text-align:center;}
+  table.pr td.d{text-align:center;white-space:nowrap;}
+  table.pr tr.off td.d{color:#b45309;}
+  table.pr td .w{font-size:7.5pt;color:#333;}
+  table.pr td.blank{color:#999;}
+  table.pr tr{break-inside:avoid;}
+  .pr-foot{display:flex;gap:6mm;margin-top:4mm;align-items:flex-start;}
+  .pr-foot table{border-collapse:collapse;}
+  .pr-foot td,.pr-foot th{border:1px solid #000;padding:1px 6px;font-size:8.5pt;}
+  .pr-foot th{background:#eee;}
+  .pr-foot td.v{text-align:right;white-space:nowrap;}
+  .pr-note{font-size:7.5pt;color:#333;margin-top:2mm;}
+}
 </style>
 </head>
 <body>
@@ -121,6 +151,7 @@ button,select,input{font-family:inherit;color:inherit;}
     <button class="mbtn" id="filloff" title="未入力の土日・祝日を「休み」で埋めます">土日祝を休みで埋める</button>
     <button class="mbtn" id="openall">すべて開く</button>
     <button class="mbtn" id="closeall">すべて閉じる</button>
+    <button class="mbtn" id="print-btn" title="表示中の月の予定を印刷します">この月を印刷</button>
   </div>
   <div id="days"><div class="loading">読み込み中…</div></div>
   <div class="hint">
@@ -140,6 +171,7 @@ button,select,input{font-family:inherit;color:inherit;}
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<div id="print-area"></div>
 
 <script>
 // =====================================================================
@@ -525,6 +557,64 @@ $('save').addEventListener('click', async () => {
     alert('保存に失敗しました：' + plain(err));
   } finally { btn.textContent = '保存'; renderSaveBar(); }
 });
+
+// ---- 印刷（表示中の担当者・月の予定表。A4縦1枚） ----
+function prCell(r){
+  if (isBlank(r)) return '<td class="blank">―</td>';
+  let main = r.entry_type;
+  if (r.entry_type === '現場') { const s = siteById(r.site_id); main = s ? siteLabel(s) : '現場（未選択）'; }
+  const w = r.work_type_id === FREE ? r.work_type_free : (wtById(r.work_type_id) || {}).name;
+  return `<td>${esc(main)}${w ? `<br><span class="w">${esc(w)}</span>` : ''}</td>`;
+}
+function buildPrint(){
+  const n = daysIn(scYear, scMonth);
+  let rows = '';
+  for (let d = 1; d <= n; d++) {
+    const date = ymd(scYear, scMonth, d);
+    const am = drafts[keyOf(date, '午前')], pm = drafts[keyOf(date, '午後')];
+    const hol = HOLIDAYS[date];
+    const notes = [am.note && '午前:' + am.note, pm.note && '午後:' + pm.note].filter(Boolean).join(' ');
+    rows += `<tr class="${isOff(scYear, scMonth, d) ? 'off' : ''}"><td class="d">${d}日(${DOW[dow(scYear, scMonth, d)]})${hol ? `<br><span class="w">${esc(hol)}</span>` : ''}</td>${prCell(am)}${prCell(pm)}<td>${esc(notes)}</td></tr>`;
+  }
+  // 集計（画面の集計と同じ考え方。1コマ＝0.5日）
+  const counts = {}; let work = 0, empty = 0;
+  Object.entries(drafts).forEach(([key, r]) => {
+    if (!r.entry_type) { const d = Number(key.slice(8, 10)); if (!isOff(scYear, scMonth, d)) empty += 0.5; return; }
+    let label;
+    if (r.entry_type === '現場') { const s = siteById(r.site_id); label = s ? siteLabel(s) : '（現場未選択）'; work += 0.5; }
+    else if (r.entry_type === '本社' || r.entry_type === 'その他') { label = r.entry_type; work += 0.5; }
+    else label = r.entry_type;
+    counts[label] = (counts[label] || 0) + 0.5;
+  });
+  const sumRows = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `<tr><td>${esc(k)}</td><td class="v">${fmtDays(v)}日</td></tr>`).join('');
+  const now = new Date();
+  $('print-area').innerHTML = `
+    <div class="pr-head">
+      <div><div class="pr-title">予定表（業務日報） ${scYear}年${scMonth}月</div>
+        <div class="pr-sub">氏名：${esc(staffName(scStaff))}　／　建設事業本部 工事課　／　印刷日：${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}</div></div>
+      <div class="pr-stamps"><div><span>本人</span><i></i></div><div><span>確認</span><i></i></div></div>
+    </div>
+    <table class="pr">
+      <colgroup><col style="width:15%"><col style="width:32%"><col style="width:32%"><col style="width:21%"></colgroup>
+      <thead><tr><th>日付</th><th>午前（現場・区分／作業内容）</th><th>午後（現場・区分／作業内容）</th><th>メモ</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="pr-foot">
+      <table><thead><tr><th>現場・区分</th><th>日数</th></tr></thead><tbody>${sumRows || '<tr><td colspan="2">入力なし</td></tr>'}</tbody></table>
+      <table><tbody><tr><th>出勤扱い</th><td class="v">${fmtDays(work)}日</td></tr>
+        ${empty ? `<tr><th>平日の未入力</th><td class="v">${fmtDays(empty)}日分</td></tr>` : ''}</tbody></table>
+    </div>
+    <div class="pr-note">1コマ（午前または午後）＝0.5日で集計。出勤扱い＝現場・本社・その他。</div>`;
+}
+$('print-btn').addEventListener('click', () => {
+  if (!scStaff) { alert('担当者を選択してください'); return; }
+  if (unsavedCount() && !confirm('保存していない変更があります。\n未保存の内容も含めて印刷します。よろしいですか？\n（先に保存する場合は「キャンセル」を押して保存してください）')) return;
+  buildPrint();
+  window.print();
+});
+// ブラウザのメニューから印刷した場合も、その月の予定表を印刷する
+window.addEventListener('beforeprint', () => { if (scStaff) buildPrint(); });
 
 function moveMonth(delta){
   if (!confirmLeave()) return;
