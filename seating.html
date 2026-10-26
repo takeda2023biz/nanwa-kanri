@@ -56,10 +56,19 @@ button,input,select,textarea{font:inherit;color:inherit}
 
 .planwrap{overflow:auto;border-radius:var(--r);min-width:0}
 .sizer{position:relative}
-.plan{position:absolute;left:0;top:0;width:1200px;height:720px;transform-origin:0 0;background:var(--paper);border:4px solid var(--wall);border-radius:2px}
+.plan{position:absolute;left:0;top:0;width:1200px;height:944px;transform-origin:0 0;background:var(--paper);border:4px solid var(--wall);border-radius:2px}
 .plan.editing{background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:40px 40px}
 .area{position:absolute;border:1.5px dashed #aaa;border-radius:3px;background:rgb(0 0 0 / .025)}
 .alabel{position:absolute;left:8px;top:5px;font-size:12px;font-weight:700;letter-spacing:.08em;color:#888}
+.area.room{border:1.5px solid #8fa3c7;background:#f3f6fb;cursor:pointer;border-radius:4px}
+.area.room .alabel{color:var(--accent);font-size:13px}
+.area.room .cap{font-weight:400;font-size:11px;color:#7d8aa3;margin-left:4px;letter-spacing:0}
+.area.room .rst{position:absolute;left:8px;right:8px;bottom:6px;font-size:12px;line-height:1.35;overflow:hidden}
+.area.room .rst .now{display:inline-block;background:#c0392b;color:#fff;font-weight:700;border-radius:4px;padding:0 6px;margin-right:4px}
+.area.room .rst .free{display:inline-block;background:#2f8f5b;color:#fff;font-weight:700;border-radius:4px;padding:0 6px;margin-right:4px}
+.area.room .rst .t{color:#555;font-family:var(--mono);font-size:11px}
+.area.room.busy{background:#fdf1ef;border-color:#d9897f}
+.rday{font-size:12px;font-weight:700;color:#555;margin-top:6px}
 .seat{position:absolute;width:104px;height:56px;padding:6px 8px;border-radius:4px;text-align:left;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:1px;
   --dc:#999;background:color-mix(in srgb,var(--dc) 12%,#fff);border:1.5px solid color-mix(in srgb,var(--dc) 60%,#fff)}
 .seat .nm{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -224,10 +233,10 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 // index.html と同じ設定にして、ログイン状態を共有します
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-const FLOORS=["2F","3F","4F"], W=1200, H=720, SW=104, SH=56, GRID=8;
+const FLOORS=["2F","3F","4F"], W=1200, H=944, SW=104, SH=56, GRID=8;
 // 事業本部の色（電話番号帳のバッジと同じ）
 const HB_COLOR={'管理本部':'#1a2d5a','エネルギー事業本部':'#d4a900','環境衛生事業本部':'#1a6fc4','衛生管理部':'#d94040','建設事業本部':'#2e7d32','建設資材事業本部':'#0097a7'};
-const S={seats:[],areas:[],phones:[],people:[],loaded:false,floor:"2F",edit:false,canEdit:false,sheet:null,hl:null,hlPhone:null,view:"plan",att:{},attAsOf:null,sch:{},schAsOf:null};
+const S={seats:[],areas:[],phones:[],people:[],loaded:false,floor:"2F",edit:false,canEdit:false,sheet:null,hl:null,hlPhone:null,view:"plan",att:{},attAsOf:null,sch:{},schAsOf:null,rooms:{},roomAsOf:null};
 let scale=1,drag=null,pendingRender=false,suppressClick=false;
 const $=s=>document.querySelector(s);
 function h(tag,props,...kids){const el=document.createElement(tag);for(const[k,v]of Object.entries(props||{})){if(v==null||v===false)continue;if(k==="class")el.className=v;else if(k==="style")el.style.cssText=v;else if(k==="text")el.textContent=v;else if(k.startsWith("on"))el.addEventListener(k.slice(2),v);else el.setAttribute(k,v===true?"":v);}for(const c of kids.flat(3)){if(c==null||c===false)continue;el.append(c.nodeType?c:String(c));}return el;}
@@ -237,13 +246,14 @@ try{const f=localStorage.getItem("seat-floor");if(FLOORS.includes(f))S.floor=f;}
 
 /* ---------- data ---------- */
 async function loadAll(){
-  const [s,a,p,ph,att,sc]=await Promise.all([
+  const [s,a,p,ph,att,sc,rs]=await Promise.all([
     sb.from('seats').select('id,floor,x,y,phone_id,rot'),
-    sb.from('seat_areas').select('id,floor,x,y,w,h,label'),
+    sb.from('seat_areas').select('*'),
     sb.rpc('seat_directory'),
     sb.from('seat_phones').select('id,floor,ext,label,on_map,x,y'),
     sb.from('seat_attendance').select('employee_id,status,punch,note,as_of'),
-    sb.from('seat_schedules').select('id,employee_id,start_date,start_time,end_date,end_time,kind,title,as_of')
+    sb.from('seat_schedules').select('id,employee_id,start_date,start_time,end_date,end_time,kind,title,as_of'),
+    sb.from('seat_room_schedules').select('id,facility,start_date,start_time,end_date,end_time,kind,title,as_of')
   ]);
   const err=s.error||a.error||p.error||ph.error;
   if(err){console.error(err);toast("データの読み込みに失敗しました。再読み込みしてください");return false;}
@@ -252,6 +262,8 @@ async function loadAll(){
   if(!att.error){for(const r of att.data||[]){S.att[r.employee_id]=r;if(!S.attAsOf||r.as_of>S.attAsOf)S.attAsOf=r.as_of;}}
   S.sch={};S.schAsOf=null;
   if(sc&&!sc.error){for(const r of sc.data||[]){(S.sch[r.employee_id]||=[]).push(r);if(!S.schAsOf||r.as_of>S.schAsOf)S.schAsOf=r.as_of;}}
+  S.rooms={};S.roomAsOf=null;
+  if(rs&&!rs.error){for(const r of rs.data||[]){(S.rooms[r.facility]||=[]).push(r);if(!S.roomAsOf||r.as_of>S.roomAsOf)S.roomAsOf=r.as_of;}}
   render();return true;
 }
 async function write(promise,okMsg){
@@ -313,6 +325,11 @@ function schToday(p){if(!p)return[];const t=ymd(new Date());
 // 席に札を出すのは「休み・外出系・会議系」だけ（空欄の予定や見積・確認などの社内作業は詳細にだけ出す）
 const chipKind=k=>kindClass(k)!=="k-etc";
 function schNow(p){const now=new Date();return schToday(p).filter(e=>{if(!chipKind(e.kind))return false;const{st,en}=evSpan(e);return st<=now&&now<en;}).sort((a,b)=>(/休/.test(b.kind)-/休/.test(a.kind)))[0]||null;}
+function roomDay(fac,day){const t=ymd(day);return(S.rooms[fac]||[]).filter(e=>e.start_date<=t&&e.end_date>=t).sort((a,b)=>evSpan(a).st-evSpan(b).st);}
+function roomStatus(fac){const now=new Date(),evs=roomDay(fac,now);
+  const cur=evs.find(e=>{const{st,en}=evSpan(e);return st<=now&&now<en;});
+  const next=evs.find(e=>evSpan(e).st>now);return{cur,next,evs};}
+const capOf=f=>{const m=String(f||"").match(/（(\d+)名）/);return m?m[1]+"名":"";};
 const hm=d=>`${d.getHours()}:${String(d.getMinutes()).padStart(2,"0")}`;
 function evTimeText(e){const{st,en,allDay}=evSpan(e);if(allDay)return"終日";return hm(st)+(e.end_time?"-"+hm(en):"〜");}
 const fmtTime=iso=>{const d=new Date(iso);return`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
@@ -323,7 +340,7 @@ const seatOf=(p,D)=>p.seat_id?D.seatById[p.seat_id]||null:null;
 function render(){if(drag){pendingRender=true;return;}renderTabs();
   const list=S.view==="list";$("#wrap").hidden=list;$("#legend").hidden=list;$("#extView").hidden=!list;$("#floors").style.visibility=list?"hidden":"";
   if(list)renderExtList();else{renderPlan();renderLegend();}
-  if(S.sheet&&["detail","phone"].includes(S.sheet.mode)&&!(S.sheet.mode==="phone"&&S.edit))renderSheet();}
+  if(S.sheet&&["detail","phone","room"].includes(S.sheet.mode)&&!(S.sheet.mode==="phone"&&S.edit))renderSheet();}
 function renderTabs(){
   const D=derive(),nav=$("#floors");nav.replaceChildren();
   for(const f of FLOORS){const n=S.seats.filter(s=>s.floor===f&&D.bySeat[s.id]).length;
@@ -339,8 +356,13 @@ function selected(kind,id){const sh=S.sheet;if(!sh)return false;
 function renderPlan(){
   const D=derive(),plan=$("#plan");plan.replaceChildren();plan.classList.toggle("editing",S.edit);
   const areas=S.areas.filter(a=>a.floor===S.floor),seats=S.seats.filter(s=>s.floor===S.floor);
-  for(const a of areas)plan.append(h("div",{class:"area"+(selected("area",a.id)?" sel":""),"data-id":a.id,style:`left:${a.x}px;top:${a.y}px;width:${a.w}px;height:${a.h}px`},
-    h("span",{class:"alabel",text:a.label||"エリア"}),S.edit?h("span",{class:"rz","aria-hidden":"true"}):null));
+  for(const a of areas){
+    let inner=null,cls="";
+    if(a.facility){const R=roomStatus(a.facility);cls=" room"+(R.cur?" busy":"");
+      inner=h("div",{class:"rst"},R.cur?[h("span",{class:"now"},"使用中"),h("span",{class:"t",text:`〜${hm(evSpan(R.cur).en)}`})," ",(R.cur.title||R.cur.kind||"")]
+        :[h("span",{class:"free"},"空き"),R.next?h("span",{class:"t",text:`次 ${hm(evSpan(R.next).st)}〜`}):h("span",{class:"t",text:S.roomAsOf?"本日の予約なし":"予約情報なし"})]);}
+    plan.append(h("div",{class:"area"+cls+(selected("area",a.id)?" sel":""),"data-id":a.id,style:`left:${a.x}px;top:${a.y}px;width:${a.w}px;height:${a.h}px`,title:a.facility||null},
+      h("span",{class:"alabel"},a.label||"エリア",a.facility&&capOf(a.facility)?h("span",{class:"cap",text:capOf(a.facility)}):null),inner,S.edit?h("span",{class:"rz","aria-hidden":"true"}):null));}
   const selPhone=S.sheet&&S.sheet.mode==="phone"?S.sheet.id:null;
   for(const s of seats){const p=D.bySeat[s.id],E=seatExt(s,p,D),A=attOf(p),N=schNow(p);
     const extText=E.shared?(N?`☎ ${E.ext}`:`☎ ${E.ext} 共用`):(E.ext?"内線 "+E.ext:(p?"内線 —":""));
@@ -423,6 +445,7 @@ plan.addEventListener("click",e=>{
   if(phone){openSheet("phone",phone.dataset.id);return;}
   if(seat){const p=derive().bySeat[seat.dataset.id];if(S.edit)openSheet("seat",seat.dataset.id);else if(p)openSheet("detail",p.id);else toast("空席です");}
   else if(area&&S.edit)openSheet("area",area.dataset.id);
+  else if(area){const a=S.areas.find(x=>x.id===area.dataset.id);if(a&&a.facility)openSheet("room",a.id);}
 });
 
 /* ---------- sheet ---------- */
@@ -431,8 +454,8 @@ function closeSheet(){if(!S.sheet)return;S.sheet=null;$("#sheet").hidden=true;re
 function renderSheet(){
   const sh=$("#sheet");if(!S.sheet){sh.hidden=true;return;}
   const{mode,id}=S.sheet;
-  const kicker={detail:"社員情報",seat:"座席の設定",area:"エリアの設定",phone:S.edit?"電話機の設定":"電話機",import:"在席情報の取り込み",importSch:"予定の取り込み（サイボウズ）"}[mode];
-  const body={detail:sheetDetail,seat:sheetSeat,area:sheetArea,phone:S.edit?sheetPhoneEdit:sheetPhone,import:sheetImport,importSch:sheetImportSch}[mode](id);
+  const kicker={detail:"社員情報",seat:"座席の設定",area:"エリアの設定",phone:S.edit?"電話機の設定":"電話機",import:"在席情報の取り込み",importSch:"予定の取り込み（サイボウズ）",room:"会議室の予約"}[mode];
+  const body={detail:sheetDetail,seat:sheetSeat,area:sheetArea,phone:S.edit?sheetPhoneEdit:sheetPhone,import:sheetImport,importSch:sheetImportSch,room:sheetRoom}[mode](id);
   sh.replaceChildren(h("div",{class:"sh-bar"},h("span",{class:"sh-kicker",text:kicker}),h("button",{type:"button",class:"x","aria-label":"閉じる",onclick:closeSheet},"×")),...body.filter(Boolean));
   sh.hidden=false;
 }
@@ -596,7 +619,8 @@ function sheetImport(){
 }
 let IMPORT_SCH=null;
 function prepareSchedule(rows,col,fname){
-  const iId=col("イベントID"),iSd=col("開始日付"),iSt=col("開始時刻"),iEd=col("終了日付"),iEt=col("終了時刻"),iK=col("予定"),iT=col("予定詳細"),iP=col("参加者");
+  const iId=col("イベントID"),iSd=col("開始日付"),iSt=col("開始時刻"),iEd=col("終了日付"),iEt=col("終了時刻"),iK=col("予定"),iT=col("予定詳細"),iP=col("参加者"),iF=col("施設");
+  const roomOut=[];
   const D=derive(),seated=S.people.filter(p=>seatOf(p,D)),byKey={},dup=new Set();
   for(const p of seated){const k=nameKey(p.name);if(byKey[k])dup.add(k);byKey[k]=p;}
   const toISO=v=>{const m=String(v||"").match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);return m?`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`:"";};
@@ -606,6 +630,8 @@ function prepareSchedule(rows,col,fname){
     const sd=toISO(r[iSd]),ed=toISO(r[iEd])||sd;if(!sd)continue;
     if(!from||sd<from)from=sd;if(!to||ed>to)to=ed;
     const kind=(r[iK]||"").trim();if(kind==="ToDo"){todo++;continue;}
+    if(iF>=0)for(const f of String(r[iF]||"").split(/[、,，\n\r]+/).map(v=>v.trim()).filter(Boolean))
+      roomOut.push({id:`${(r[iId]||"").trim()||kind}:${sd}:${toHM(r[iSt])}:${f}`,facility:f,start_date:sd,start_time:toHM(r[iSt]),end_date:ed,end_time:toHM(r[iEt]),kind,title:(iT>=0?r[iT]:"").trim().slice(0,100)});
     const names=String(r[iP]||"").split(/[、,，\n\r／\/]+/).map(v=>v.trim()).filter(Boolean);
     for(const nm of names){const k=nameKey(nm),p=!dup.has(k)&&byKey[k];
       if(!p){otherNames.add(nm);continue;}
@@ -613,7 +639,8 @@ function prepareSchedule(rows,col,fname){
       out.push({id:`${(r[iId]||"").trim()||kind}:${sd}:${toHM(r[iSt])}:${p.id}`,employee_id:p.id,start_date:sd,start_time:toHM(r[iSt]),end_date:ed,end_time:toHM(r[iEt]),kind,title:(iT>=0?r[iT]:"").trim().slice(0,100)});}
   }
   const uniq=[...new Map(out.map(x=>[x.id,x])).values()];  // 繰り返し予定・重複行をまとめる
-  IMPORT_SCH={file:fname,total:rows.length,rows:uniq,people:people.size,other:otherNames.size,todo,from,to,dup:[...dup]};
+  const roomRows=[...new Map(roomOut.map(x=>[x.id,x])).values()];
+  IMPORT_SCH={file:fname,total:rows.length,rows:uniq,roomRows,roomFacs:new Set(roomRows.map(x=>x.facility)).size,people:people.size,other:otherNames.size,todo,from,to,dup:[...dup]};
   openSheet("importSch",null);
 }
 function sheetImportSch(){
@@ -625,23 +652,44 @@ function sheetImportSch(){
       h("span",{text:"座席表の社員と一致した人"}),h("b",{text:I.people}),
       h("span",{text:"取り込む予定"}),h("b",{text:I.rows.length}),
       h("span",{text:"取り込まない（ToDo）"}),h("b",{text:I.todo}),
-      h("span",{text:"座席表にいない参加者"}),h("b",{text:I.other})),
+      h("span",{text:"座席表にいない参加者"}),h("b",{text:I.other}),
+      h("span",{text:"会議室など施設の予約"}),h("b",{text:I.roomRows.length?`${I.roomRows.length}件（${I.roomFacs}施設）`:"0"})),
     h("p",{class:"hint",text:"日時・予定の種類・予定詳細だけを取り込みます。メモ欄は取り込みません。取り込んだ人のこの期間の予定は、新しい内容に入れ替わります。"}),
     I.dup.length?h("p",{class:"hint",text:"同姓同名のため照合できない人がいます："+I.dup.join("、")}):null,
-    h("div",{class:"actions"},h("button",{type:"button",class:"btn primary",disabled:!I.rows.length,onclick:async()=>{
-      const rows=I.rows,from=I.from,to=I.to;closeSheet();IMPORT_SCH=null;
-      await write(sb.rpc('seat_import_schedules',{p_rows:rows,p_from:from,p_to:to}),`予定を反映しました（${rows.length}件）`);}},"反映する"),
+    h("div",{class:"actions"},h("button",{type:"button",class:"btn primary",disabled:!I.rows.length&&!I.roomRows.length,onclick:async()=>{
+      const rows=I.rows,rooms=I.roomRows,from=I.from,to=I.to;closeSheet();IMPORT_SCH=null;
+      await write(async()=>{
+        if(rows.length){const r=await sb.rpc('seat_import_schedules',{p_rows:rows,p_from:from,p_to:to});if(r.error)return r;}
+        if(rooms.length){const r=await sb.rpc('seat_import_room_schedules',{p_rows:rooms,p_from:from,p_to:to});if(r.error)return r;}
+        return{error:null};
+      },[rows.length?`予定 ${rows.length}件`:"",rooms.length?`会議室の予約 ${rooms.length}件`:""].filter(Boolean).join("・")+"を反映しました");}},"反映する"),
       h("button",{type:"button",class:"btn",onclick:closeSheet},"やめる"))];
+}
+function sheetRoom(id){
+  const a=S.areas.find(x=>x.id===id);if(!a)return[h("p",{class:"muted",text:"この部屋は削除されました。"})];
+  const days=[];for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()+i);days.push(d);}
+  const now=new Date(),wd="日月火水木金土";
+  const blocks=days.map((d,i)=>{const evs=roomDay(a.facility,d);if(i>0&&!evs.length)return null;
+    return h("div",{},h("div",{class:"rday",text:i===0?`今日（${d.getMonth()+1}/${d.getDate()}）`:`${d.getMonth()+1}/${d.getDate()}（${wd[d.getDay()]}）`}),
+      evs.length?h("div",{class:"today"},evs.map(e=>{const{st,en}=evSpan(e);return h("div",{class:"ev"+(i===0&&st<=now&&now<en?" now":"")},h("span",{class:"t",text:evTimeText(e)}),
+        h("span",{},e.kind?h("span",{class:"k",text:e.kind}):null,e.title||""));})):h("p",{class:"hint",text:"予約はありません"}));}).filter(Boolean);
+  return[h("div",{},h("h2",{text:a.label}),h("div",{class:"hint",text:a.facility})),
+    ...blocks,
+    h("p",{class:"hint",text:S.roomAsOf?`${fmtTime(S.roomAsOf)} に取り込んだサイボウズの予約です。予約・変更はサイボウズで行ってください。`:"まだ予約情報を取り込んでいません。サイボウズのスケジュールCSV（施設を含む）を取り込むと表示されます。"})];
 }
 function sheetArea(id){
   const a=S.areas.find(x=>x.id===id);if(!a)return[h("p",{class:"muted",text:"このエリアは削除されました。"})];
   const inp=h("input",{id:"ar-label",value:a.label||"",maxlength:"30"});
+  const facs=[...new Set([...Object.keys(S.rooms),...S.areas.map(x=>x.facility).filter(Boolean)])].sort();
+  const fac=h("input",{id:"ar-fac",value:a.facility||"",list:"fac-list",placeholder:"例：大会議室（30名）【3F】"});
   const del=h("button",{type:"button",class:"btn danger",onclick:async()=>{
     if(!del.hasAttribute("data-armed")){del.setAttribute("data-armed","");del.textContent="もう一度押すと削除";return;}
     closeSheet();await write(sb.from('seat_areas').delete().eq('id',id),"エリアを削除しました");}},"このエリアを削除");
   return[h("div",{class:"field"},h("label",{for:"ar-label",class:"lbl"},"名前（会議室、受付、書庫など）"),inp),
+    h("div",{class:"field"},h("label",{for:"ar-fac",class:"lbl"},"サイボウズの施設名（会議室の場合）"),fac,h("datalist",{id:"fac-list"},facs.map(f=>h("option",{value:f})))),
+    h("p",{class:"hint",text:"施設名を入れると、その部屋の予約状況（使用中・空き）が表示されます。会議室でなければ空欄のままにします。"}),
     h("div",{class:"actions"},h("button",{type:"button",class:"btn primary",onclick:async()=>{
-      closeSheet();await write(sb.from('seat_areas').update({label:inp.value.trim(),updated_at:new Date().toISOString()}).eq('id',id),"保存しました");}},"保存"),del)];
+      closeSheet();await write(sb.from('seat_areas').update({label:inp.value.trim(),facility:fac.value.trim(),updated_at:new Date().toISOString()}).eq('id',id),"保存しました");}},"保存"),del)];
 }
 
 /* ---------- edit mode ---------- */
@@ -727,7 +775,7 @@ $("#loginForm").addEventListener("submit",async e=>{
   if(error){showLoginErr("ログインに失敗しました：メールアドレスまたはパスワードが違います");return;}
   start(data.session);
 });
-setInterval(()=>{if(S.loaded&&!drag&&S.view==="plan"&&S.schAsOf)renderPlan();},60000);
+setInterval(()=>{if(S.loaded&&!drag&&S.view==="plan"&&(S.schAsOf||S.roomAsOf))renderPlan();},60000);
 window.addEventListener("focus",()=>{if(S.loaded&&!drag)loadAll();});
 (async()=>{const{data:{session}}=await sb.auth.getSession();if(!session){$("#loginView").hidden=false;return;}start(session);})();
 </script>
