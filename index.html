@@ -1274,7 +1274,8 @@ function lsBadge(end,lt){
   if(s==='none') return '<span class="badge b-gray">—</span>';
   return '<span class="badge b-green">正常</span>';
 }
-function remain(end){
+function remain(end,lt){
+  if(lt==='満了') return '—';
   if(!end||end==='—') return '—';
   const days=Math.floor((new Date(end)-TODAY)/86400000);
   if(days<0) return Math.abs(days)+'日超過';
@@ -1674,7 +1675,7 @@ function renderDevices(){
           <td>${hbBadge(d.honbu)}</td>
           <td class="mono">${d.start_date||'—'}</td>
           <td class="mono">${d.end_date||'—'}</td>
-          <td style="font-size:12px">${remain(d.end_date)}</td>
+          <td style="font-size:12px">${remain(d.end_date,d.lease_type)}</td>
           <td>${lsBadge(d.end_date,d.lease_type)}</td>
           <td style="text-align:right;font-family:monospace;font-size:11px">${d.monthly?Number(d.monthly).toLocaleString():'—'}</td>
           <td><button class="btn" style="height:28px;padding:0 10px;font-size:11px" onclick="openDevModal('${d.id}')">編集</button></td>
@@ -2040,7 +2041,7 @@ function renderContracts(){
       ['担当者',d=>d.assignee||'—',''],
       ['開始日',d=>`<span class="mono">${d.start_date||'—'}</span>`,''],
       ['満了日',d=>`<span class="mono">${d.end_date||'—'}</span>`,''],
-      ['残期間',d=>remain(d.end_date),'style="font-size:12px"'],
+      ['残期間',d=>remain(d.end_date,d.lease_type),'style="font-size:12px"'],
       ['状態',d=>lsBadge(d.end_date,d.lease_type),''],
       ['月額',d=>d.monthly?Number(d.monthly).toLocaleString()+'円':'—','style="text-align:right;font-family:monospace;font-size:11px"'],
     ])}
