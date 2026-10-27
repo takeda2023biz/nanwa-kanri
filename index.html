@@ -1776,7 +1776,7 @@ function exportDevCSV(){
 }
 
 // ── 車両管理 ──
-let vehQ='',vehHonbu='',vehOwnership='',vehStatusF='',vehShowReturned=false,vehEditId=null,vehPage=1;
+let vehQ='',vehHonbu='',vehOwnership='',vehLeaseCo='',vehStatusF='',vehShowReturned=false,vehEditId=null,vehPage=1;
 let vehSortCol=null,vehSortDir=1;  // 一覧のソート状態（未指定時は期限順のデフォルト表示のまま）
 const VEH_PER=20;
 function vehPlateStr(v){
@@ -1808,7 +1808,7 @@ function vehTh(label,col,align){
 function renderVehicles(){
   const filtered=VEHICLES.filter(v=>{
     const mq=!vehQ||(v.assignee||'').includes(vehQ)||(v.model||'').includes(vehQ)||(v.maker||'').includes(vehQ)||(v.plate_number||'').includes(vehQ)||(v.chassis_no||'').includes(vehQ);
-    return mq&&(!vehHonbu||v.honbu===vehHonbu)&&(!vehOwnership||v.ownership===vehOwnership)&&(!vehStatusF||vehStatus(v)===vehStatusF)&&(vehShowReturned||v.status!=='returned');
+    return mq&&(!vehHonbu||v.honbu===vehHonbu)&&(!vehOwnership||v.ownership===vehOwnership)&&(!vehLeaseCo||(vehLeaseCo==='__none__'?!v.lease_company:v.lease_company===vehLeaseCo))&&(!vehStatusF||vehStatus(v)===vehStatusF)&&(vehShowReturned||v.status!=='returned');
   });
   if(vehSortCol){
     filtered.sort((a,b)=>{
@@ -1821,6 +1821,7 @@ function renderVehicles(){
   if(vehPage>pages)vehPage=pages;
   const slice=filtered.slice((vehPage-1)*VEH_PER,vehPage*VEH_PER);
   const honbus=[...new Set(VEHICLES.map(v=>v.honbu).filter(Boolean))];
+  const leaseCos=[...new Set(VEHICLES.map(v=>v.lease_company).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
   const activeCount=VEHICLES.filter(v=>v.status!=='returned').length;
   const _focus=saveFocus('page-vehicles');
   document.getElementById('page-vehicles').innerHTML=`
@@ -1848,6 +1849,11 @@ function renderVehicles(){
         <option value="">社有車＋リース</option>
         <option value="社有車"${vehOwnership==='社有車'?' selected':''}>社有車のみ</option>
         <option value="リース"${vehOwnership==='リース'?' selected':''}>リースのみ</option>
+      </select>
+      <select onchange="vehLeaseCo=this.value;vehPage=1;renderVehicles()">
+        <option value="">全リース会社</option>
+        ${leaseCos.map(c=>`<option value="${c}"${vehLeaseCo===c?' selected':''}>${c}</option>`).join('')}
+        <option value="__none__"${vehLeaseCo==='__none__'?' selected':''}>（リース会社なし）</option>
       </select>
       <select onchange="vehStatusF=this.value;vehPage=1;renderVehicles()">
         <option value="">全ステータス</option>
