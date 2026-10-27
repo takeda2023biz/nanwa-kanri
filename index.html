@@ -1806,10 +1806,16 @@ function vehTh(label,col,align){
   return `<th class="${cls}"${styleAttr} onclick="vehSetSort('${col}')">${label} <span class="sort-icon">${icon}</span></th>`;
 }
 function renderVehicles(){
-  const filtered=VEHICLES.filter(v=>{
+  // リース会社以外の条件で絞り込み → その結果に含まれるリース会社だけを選択肢にする
+  const baseFiltered=VEHICLES.filter(v=>{
     const mq=!vehQ||(v.assignee||'').includes(vehQ)||(v.model||'').includes(vehQ)||(v.maker||'').includes(vehQ)||(v.plate_number||'').includes(vehQ)||(v.chassis_no||'').includes(vehQ);
-    return mq&&(!vehHonbu||v.honbu===vehHonbu)&&(!vehOwnership||v.ownership===vehOwnership)&&(!vehLeaseCo||(vehLeaseCo==='__none__'?!v.lease_company:v.lease_company===vehLeaseCo))&&(!vehStatusF||vehStatus(v)===vehStatusF)&&(vehShowReturned||v.status!=='returned');
+    return mq&&(!vehHonbu||v.honbu===vehHonbu)&&(!vehOwnership||v.ownership===vehOwnership)&&(!vehStatusF||vehStatus(v)===vehStatusF)&&(vehShowReturned||v.status!=='returned');
   });
+  const leaseCos=[...new Set(baseFiltered.map(v=>v.lease_company).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
+  const hasNoLeaseCo=baseFiltered.some(v=>!v.lease_company);
+  // 他の条件を変えて選択中のリース会社が対象外になったら「全リース会社」に戻す
+  if(vehLeaseCo&&!(vehLeaseCo==='__none__'?hasNoLeaseCo:leaseCos.includes(vehLeaseCo)))vehLeaseCo='';
+  const filtered=baseFiltered.filter(v=>!vehLeaseCo||(vehLeaseCo==='__none__'?!v.lease_company:v.lease_company===vehLeaseCo));
   if(vehSortCol){
     filtered.sort((a,b)=>{
       const va=vehSortVal(a,vehSortCol),vb=vehSortVal(b,vehSortCol);
@@ -1821,7 +1827,6 @@ function renderVehicles(){
   if(vehPage>pages)vehPage=pages;
   const slice=filtered.slice((vehPage-1)*VEH_PER,vehPage*VEH_PER);
   const honbus=[...new Set(VEHICLES.map(v=>v.honbu).filter(Boolean))];
-  const leaseCos=[...new Set(VEHICLES.map(v=>v.lease_company).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
   const activeCount=VEHICLES.filter(v=>v.status!=='returned').length;
   const _focus=saveFocus('page-vehicles');
   document.getElementById('page-vehicles').innerHTML=`
@@ -1853,7 +1858,7 @@ function renderVehicles(){
       <select onchange="vehLeaseCo=this.value;vehPage=1;renderVehicles()">
         <option value="">全リース会社</option>
         ${leaseCos.map(c=>`<option value="${c}"${vehLeaseCo===c?' selected':''}>${c}</option>`).join('')}
-        <option value="__none__"${vehLeaseCo==='__none__'?' selected':''}>（リース会社なし）</option>
+        ${hasNoLeaseCo?`<option value="__none__"${vehLeaseCo==='__none__'?' selected':''}>（リース会社なし）</option>`:''}
       </select>
       <select onchange="vehStatusF=this.value;vehPage=1;renderVehicles()">
         <option value="">全ステータス</option>
