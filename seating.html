@@ -390,7 +390,7 @@ function renderLegend(){
   else if(S.attAsOf)el.append(h("span",{class:"stale",text:`在席情報は本日まだ取り込まれていません（前回 ${fmtTime(S.attAsOf)}）`}));
   if(S.schAsOf){const nowN=used.filter(st=>schNow(D.bySeat[st.id])).length;
     el.append(h("span",{class:"lg"},h("span",{class:"sch k-out",style:"position:static"},"予定"),`予定中 ${nowN}名（サイボウズ ${fmtTime(S.schAsOf)} 取り込み）`));}
-  if(S.phones.some(x=>x.floor===S.floor&&x.on_map))el.append(h("span",{text:"☎ は共用電話・代表番号（クリックで使う人を表示）"}));
+  if(S.phones.some(x=>x.floor===S.floor&&x.on_map))el.append(h("span",{text:"☎ は共用電話（クリックで使う人を表示）"}));
 }
 function renderExtList(){
   const D=derive(),wrap=$("#extList");wrap.replaceChildren();
