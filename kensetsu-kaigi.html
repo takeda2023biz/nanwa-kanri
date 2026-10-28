@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>建設 営業会議資料</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --surface-0:#f5f5f3; --surface-1:#ffffff; --border:#e6e5df; --grid:#eeede8;
+  --text-primary:#1a1a1a; --text-secondary:#52514e; --text-muted:#8a8984;
+  --series-1:#2a78d6; --series-1-soft:#cde2fb; --series-2:#eb6834; --accent-bg:#f9f9f7;
+  --good:#1a7f37; --warn:#9a6700; --bad:#b42318; --new-bg:#fff6c7; --sum-bg:#eef4fc;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    --surface-0:#121211; --surface-1:#1a1a19; --border:#2e2e2b; --grid:#262624;
+    --text-primary:#f0efec; --text-secondary:#c3c2b7; --text-muted:#8f8e86;
+    --series-1:#3987e5; --series-1-soft:#1c3a5e; --series-2:#f0844f; --accent-bg:#20201e;
+    --good:#4ac26b; --warn:#d4a72c; --bad:#f47067; --new-bg:#3a3415; --sum-bg:#1a2636;
+  }
+}
+:root[data-theme="dark"]{
+  --surface-0:#121211; --surface-1:#1a1a19; --border:#2e2e2b; --grid:#262624;
+  --text-primary:#f0efec; --text-secondary:#c3c2b7; --text-muted:#8f8e86;
+  --series-1:#3987e5; --series-1-soft:#1c3a5e; --series-2:#f0844f; --accent-bg:#20201e;
+  --good:#4ac26b; --warn:#d4a72c; --bad:#f47067; --new-bg:#3a3415; --sum-bg:#1a2636;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:14px;background:var(--surface-0);color:var(--text-primary);min-height:100vh;}
+.topbar{background:var(--surface-1);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;min-height:56px;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:10;}
+.title{font-size:16px;font-weight:700;}
+.sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;}
+select,input,button{font-family:inherit;font-size:13px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--surface-1);color:var(--text-primary);padding:0 10px;}
+button{cursor:pointer;font-weight:500;}
+button.primary{background:var(--text-primary);color:var(--surface-1);border-color:var(--text-primary);}
+button:disabled{opacity:.5;cursor:default;}
+.tabs{display:flex;gap:4px;padding:0 24px;background:var(--surface-1);border-bottom:1px solid var(--border);overflow-x:auto;position:sticky;top:56px;z-index:9;}
+.tab{border:none;border-bottom:2px solid transparent;border-radius:0;height:40px;background:none;color:var(--text-secondary);white-space:nowrap;padding:0 12px;}
+.tab.on{color:var(--text-primary);border-bottom-color:var(--series-1);font-weight:700;}
+.tab .cnt{font-size:11px;color:var(--text-muted);margin-left:4px;font-weight:400;}
+.main{padding:20px 24px 48px;max-width:1600px;margin:0 auto;}
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px;}
+.card h2{font-size:15px;font-weight:700;margin-bottom:4px;}
+.card .note{font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;}
+.head-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px;}
+.tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
+.tile .k{font-size:11px;color:var(--text-secondary);}
+.tile .v{font-size:22px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;}
+.tile .u{font-size:12px;font-weight:500;color:var(--text-secondary);margin-left:2px;}
+.tile .s{font-size:11px;color:var(--text-muted);margin-top:4px;}
+.meter{height:6px;background:var(--grid);border-radius:3px;margin-top:8px;overflow:hidden;}
+.meter i{display:block;height:100%;background:var(--series-1);border-radius:3px;}
+.tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:10px;}
+.tbl-wrap.tall{max-height:640px;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{background:var(--accent-bg);color:var(--text-secondary);font-weight:600;font-size:11px;padding:7px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:1;}
+tbody td{padding:5px 8px;border-bottom:1px solid var(--grid);white-space:nowrap;}
+tbody tr:hover{background:var(--accent-bg);}
+tr.new td{background:var(--new-bg);}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
+td.wrap{white-space:normal;min-width:160px;max-width:260px;}
+tfoot td{padding:7px 8px;font-weight:700;border-top:1px solid var(--border);background:var(--accent-bg);position:sticky;bottom:0;white-space:nowrap;}
+table.matrix th,table.matrix td{border:1px solid var(--border);}
+table.matrix thead th{text-align:center;position:static;}
+table.matrix td.lbl{font-weight:600;background:var(--accent-bg);white-space:nowrap;}
+table.matrix tr.total td{background:var(--sum-bg);font-weight:700;}
+table.matrix td.blank{background:var(--surface-0);}
+.muted{color:var(--text-muted);}
+.neg{color:var(--bad);}
+.badge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid var(--border);color:var(--text-secondary);}
+a{color:var(--series-1);}
+.gate{max-width:420px;margin:12vh auto 0;background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:28px;}
+.gate h1{font-size:18px;margin-bottom:6px;}
+.gate p{font-size:12px;color:var(--text-secondary);line-height:1.7;margin-bottom:16px;}
+.gate input{width:100%;margin-bottom:10px;}
+.gate button{width:100%;}
+.err{color:var(--bad);font-size:12px;margin-top:8px;min-height:18px;}
+.banner{background:var(--accent-bg);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:12px;color:var(--text-secondary);margin-bottom:16px;line-height:1.7;}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+.hidden{display:none!important;}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;}
+@media(max-width:1000px){.grid2{grid-template-columns:minmax(0,1fr);}}
+.chart svg{display:block;width:100%;height:auto;overflow:visible;}
+.chart .axis text{fill:var(--text-muted);font-size:11px;}
+.chart .gridline{stroke:var(--grid);stroke-width:1;}
+.legend{display:flex;gap:14px;font-size:11px;color:var(--text-secondary);margin-bottom:6px;flex-wrap:wrap;}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px;}
+.tip{position:fixed;pointer-events:none;background:var(--surface-1);color:var(--text-primary);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;box-shadow:0 4px 16px rgba(0,0,0,.12);display:none;z-index:50;white-space:nowrap;}
+.gantt{display:grid;grid-template-columns:repeat(12,22px);height:14px;}
+.gantt span{border-left:1px solid var(--grid);}
+.gantt span.on{background:var(--series-1);}
+.gantt-h{display:grid;grid-template-columns:repeat(12,22px);font-size:10px;color:var(--text-muted);}
+.gantt-h span{text-align:center;}
+dialog{border:1px solid var(--border);border-radius:14px;padding:22px;background:var(--surface-1);color:var(--text-primary);max-width:560px;width:calc(100% - 32px);}
+dialog::backdrop{background:rgba(0,0,0,.35);}
+dialog h3{font-size:15px;margin-bottom:6px;}
+dialog .note{font-size:11px;color:var(--text-muted);margin-bottom:12px;line-height:1.6;}
+.form{display:grid;grid-template-columns:1fr 180px;gap:8px 12px;align-items:center;font-size:12px;margin-bottom:14px;}
+.form input{text-align:right;width:100%;}
+.form .sec{grid-column:1/-1;font-weight:700;font-size:12px;margin-top:6px;color:var(--text-secondary);}
+.dlg-btns{display:flex;gap:8px;justify-content:flex-end;}
+.print-only{display:none;}
+@media(max-width:640px){.topbar,.tabs{padding-left:16px;padding-right:16px;} .main{padding:16px;} .tabs{top:0;position:static;}}
+@media print{
+  @page{size:A3 landscape;margin:10mm;}
+  body{background:#fff;font-size:11px;}
+  .topbar .controls,.tabs,.gate,.no-print,.banner{display:none!important;}
+  .topbar{position:static;border:none;}
+  .sec{display:block!important;break-after:page;}
+  .sec.no-print{display:none!important;}
+  .sec:last-child{break-after:auto;}
+  .card{border:none;padding:0;}
+  .tbl-wrap,.tbl-wrap.tall{max-height:none;overflow:visible;border:none;}
+  thead th,tfoot td{position:static;}
+  table{font-size:9.5px;} tbody td,thead th{padding:3px 4px;}
+  td.wrap{max-width:200px;}
+  .print-only{display:block;}
+}
+</style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <h1>建設 営業会議資料</h1>
+  <p>kintone「受注・売上管理」のデータから、営業会議資料（工事物件表・工事現況表・物件予定一覧）を表示します。<br>閲覧キーを入力してください（経営ダッシュボードと同じキー。このタブを閉じるまで有効）。</p>
+  <form id="gate-form">
+    <input id="gate-key" type="password" autocomplete="current-password" placeholder="閲覧キー">
+    <button class="primary" type="submit">表示する</button>
+  </form>
+  <div class="err" id="gate-err"></div>
+</div>
+
+<div id="app" class="hidden">
+  <div class="topbar">
+    <div>
+      <div class="title" id="doc-title">㈱ナンワ 建設事業本部 工事物件表</div>
+      <div class="sub" id="sync-info"></div>
+    </div>
+    <div class="controls">
+      <label class="muted" for="term">期</label>
+      <select id="term"></select>
+      <button id="reload" title="最新のデータを読み込み直します">更新</button>
+      <button id="xlsx" title="表示中の期の会議資料を Excel ファイルで保存します">Excel 出力</button>
+      <button id="print" title="全シートを A3 横で印刷します">印刷</button>
+      <button id="logout">閉じる</button>
+    </div>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="main" id="main"></div>
+</div>
+<div class="tip" id="tip"></div>
+
+<dialog id="dlg-settings">
+  <h3>目標・手入力の値</h3>
+  <div class="note" id="dlg-settings-note">kintone に無い値です（Excel では総務が手入力していた欄）。保存すると、閲覧キーを持つ全員の画面に反映されます。</div>
+  <div class="form" id="settings-form"></div>
+  <div class="dlg-btns"><button id="settings-cancel">キャンセル</button><button class="primary" id="settings-save">保存</button></div>
+  <div class="err" id="settings-err"></div>
+</dialog>
+
+<dialog id="dlg-misc">
+  <h3>諸工事原価（月別）</h3>
+  <div class="note">総務入力の欄です。空欄にして保存するとその月の値を削除します。</div>
+  <div class="form" id="misc-form"></div>
+  <div class="dlg-btns"><button id="misc-cancel">キャンセル</button><button class="primary" id="misc-save">保存</button></div>
+  <div class="err" id="misc-err"></div>
+</dialog>
+
+<dialog id="dlg-record">
+  <h3>売上集計表に記録</h3>
+  <div class="note">いまの「既受注合計」（契約金額・粗利）を、選んだ月の値として記録します。同じ月に記録済みなら上書きします。<br>例: 10月の営業会議では「9月」として記録（Excel と同じ運用）。</div>
+  <div class="form">
+    <label for="rec-ym">記録する月</label><select id="rec-ym"></select>
+    <span>既受注合計 契約金額</span><span class="num" id="rec-sales" style="text-align:right"></span>
+    <span>既受注合計 粗利</span><span class="num" id="rec-gp" style="text-align:right"></span>
+  </div>
+  <div class="dlg-btns"><button id="rec-cancel">キャンセル</button><button class="primary" id="rec-save">記録する</button></div>
+  <div class="err" id="rec-err"></div>
+</dialog>
+
+<script>
+const SUPABASE_URL = 'https://cicxvcjnvkynhukbnrns.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { db: { schema: 'kensetsu' } });
+const $ = id => document.getElementById(id);
+const KEY_STORE = 'kensetsu_dash_key', TAB_STORE = 'kensetsu_kaigi_tab';
+
+let DATA = null, KOJI = [], termNo = 48, tab = 'summary';
+
+// ---------- 表示用 ----------
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const n = v => (v == null || v === '' || isNaN(v)) ? null : Number(v);
+const sum = (arr, f) => arr.reduce((a, x) => a + (n(f(x)) || 0), 0);
+function yen(v){ v = n(v); return v == null ? '' : (v < 0 ? '<span class="neg">' : '') + Math.round(v).toLocaleString('ja-JP') + (v < 0 ? '</span>' : ''); }
+function man(v){ v = n(v); return v == null ? '—' : (v / 1e6).toLocaleString('ja-JP', { maximumFractionDigits: 1, minimumFractionDigits: 1 }); }
+function rate(a, b){ a = n(a); b = n(b); return (a == null || !b) ? '' : (a / b * 100).toFixed(1) + '%'; }
+function ymd(s){ if (!s) return ''; const d = String(s).slice(0, 10).split('-'); return d.length === 3 ? `${+d[1]}/${+d[2]}` : esc(s); }
+function ymdFull(s){ if (!s) return ''; const d = String(s).slice(0, 10).split('-'); return d.length === 3 ? `${d[0]}/${+d[1]}/${+d[2]}` : esc(s); }
+function month(s){ if (!s) return ''; return +String(s).slice(5, 7) + '月'; }
+function safeGet(k){ try { return sessionStorage.getItem(k); } catch(e){ return null; } }
+function safeSet(k, v){ try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch(e){} }
+const reiwa = termNo => termNo - 40;                       // 第48期 = 令和8年度
+const termStart = t => new Date(t + 1978, 5, 1);          // 第48期 = 2026年6月〜2027年5月
+const ymStr = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+const termMonths = t => Array.from({ length: 12 }, (_, i) => ymStr(new Date(t + 1978, 5 + i, 1)));
+const tip = $('tip');
+function showTip(e, html){ tip.innerHTML = html; tip.style.display = 'block'; const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); const y = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8); tip.style.left = x + 'px'; tip.style.top = y + 'px'; }
+function hideTip(){ tip.style.display = 'none'; }
+
+// ---------- 読み込み ----------
+async function load(key){ const { data, error } = await sb.rpc('kaigi_data', { p_key: key }); if (error) throw error; return data; }
+$('gate-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const key = $('gate-key').value.trim(); if (!key) return;
+  $('gate-err').textContent = '確認しています…';
+  try { DATA = await load(key); safeSet(KEY_STORE, key); start(); }
+  catch (err) { $('gate-err').textContent = /閲覧キー/.test(err.message || '') ? '閲覧キーが違います。' : 'データを読み込めませんでした: ' + (err.message || err); }
+});
+$('logout').addEventListener('click', () => { safeSet(KEY_STORE, null); location.reload(); });
+async function reload(){
+  const key = safeGet(KEY_STORE); if (!key) return location.reload();
+  $('reload').disabled = true;
+  try { DATA = await load(key); start(true); } catch (e) { alert('読み込めませんでした: ' + (e.message || e)); }
+  $('reload').disabled = false;
+}
+$('reload').addEventListener('click', reload);
+$('print').addEventListener('click', () => window.print());
+$('term').addEventListener('change', e => { termNo = +e.target.value; render(); });
+
+function start(keep){
+  $('gate').classList.add('hidden'); $('app').classList.remove('hidden');
+  KOJI = (DATA.koji || []).map(k => ({ ...k, revised: n(k.revised), contract: n(k.contract), change: n(k.change),
+    gp_plan: n(k.gp_plan), gp_final: n(k.gp_final), cost: n(k.cost) }));
+  const terms = [...new Set(KOJI.map(k => k.term_no).filter(Boolean))].sort((a, b) => a - b);
+  if (!keep) {
+    const now = new Date(); const cur = now.getMonth() >= 5 ? now.getFullYear() - 1978 : now.getFullYear() - 1979;
+    termNo = terms.includes(cur) ? cur : terms.filter(t => t <= cur).pop() || terms[terms.length - 1];
+    tab = safeGet(TAB_STORE) || 'summary';
+  }
+  $('term').innerHTML = terms.map(t => `<option value="${t}" ${t === termNo ? 'selected' : ''}>第${t}期</option>`).join('');
+  const ls = DATA.last_sync;
+  $('sync-info').textContent = 'kintone 最終同期: ' + (ls ? new Date(ls.at).toLocaleString('ja-JP') + (ls.ok === false ? '（失敗）' : '') : '—')
+    + ' ／ 読込: ' + new Date(DATA.generated_at).toLocaleString('ja-JP');
+  render();
+}
+
+// ---------- kintone の一覧と同じ絞り込み ----------
+const ACTIVE = ['施工中', '精算中'];
+const byNo = (a, b) => (a.no == null) - (b.no == null) || String(a.no || '').localeCompare(String(b.no || '')) || a.id - b.id;
+const byCreated = (a, b) => String(a.created || '').localeCompare(String(b.created || '')) || a.id - b.id;
+const inT = t => KOJI.filter(k => k.term_no === t);
+const LISTS = [
+  { id: 'a1-run',  kv: 'A工事(元請)一覧(施工中)', label: 'A元請 施工中',   title: 'A物件(元請)【施工中】',   type: '元請',  st: ACTIVE,   mode: 'run' },
+  { id: 'a2-run',  kv: 'A工事(下請)一覧(施工中)', label: 'A下請 施工中',   title: 'A物件(下請)【施工中】',   type: '下請A', st: ACTIVE,   mode: 'run' },
+  { id: 'b-run',   kv: 'B工事一覧(施工中)', label: 'B 施工中',       title: 'B物件【施工中】',         type: '下請B', st: ACTIVE,   mode: 'run' },
+  { id: 'a1-done', kv: 'A工事(元請)一覧(粗利確定分)', label: 'A元請 粗利確定', title: 'A物件(元請)【粗利確定】', type: '元請',  st: ['完了'], mode: 'done' },
+  { id: 'a2-done', kv: 'A工事(下請)一覧(粗利確定分)', label: 'A下請 粗利確定', title: 'A物件(下請)【粗利確定】', type: '下請A', st: ['完了'], mode: 'done' },
+  { id: 'b-done',  kv: 'B工事一覧(粗利確定分)', label: 'B 粗利確定',     title: 'B物件【粗利確定分】',     type: '下請B', st: ['完了'], mode: 'done' },
+];
+const listRows = (L, t) => inT(t).filter(k => k.type === L.type && L.st.includes(k.status)).sort(byNo);
+const planRows = t => inT(t).filter(k => k.status === '見積中').sort(byNo);
+const pendRows = t => inT(t).filter(k => !k.status).sort(byCreated);
+const carryRows = t => inT(t + 1).sort((a, b) => String(a.type || '').localeCompare(String(b.type || ''), 'ja') || byNo(a, b));
+const kubunOf = k => k.kubun || (k.type === '下請B' ? 'B' : (k.type === '元請' || k.type === '下請A') ? 'A' : '');
+const isNew = k => k.created && (Date.now() - new Date(k.created).getTime()) < 31 * 864e5;
+const settingsOf = t => (DATA.settings || []).find(s => s.term_no === t) || { term_no: t };
+
+// ---------- 工事物件表（新書式）の集計 ----------
+function summary(t){
+  const s = settingsOf(t);
+  const agg = (rows, gpKey) => ({ sales: sum(rows, k => k.revised), gp: sum(rows, k => k[gpKey]), n: rows.length });
+  const line = (type) => {
+    const done = agg(listRows(LISTS.find(L => L.type === type && L.mode === 'done'), t), 'gp_final');
+    const run  = agg(listRows(LISTS.find(L => L.type === type && L.mode === 'run'), t), 'gp_plan');
+    return { done, run, total: { sales: done.sales + run.sales, gp: done.gp + run.gp } };
+  };
+  const rows = [
+    { label: 'Ａ物件(元請)', ...line('元請') },
+    { label: 'Ａ物件(下請)', ...line('下請A') },
+    { label: 'Ｂ物件', ...line('下請B') },
+  ];
+  const mat = { sales: n(s.material_sales) || 0, gp: n(s.material_gp) || 0 };
+  rows.push({ label: '材料販売', material: true, done: { ...mat, n: null }, run: null, total: { ...mat } });
+  const tot = {
+    done: { sales: sum(rows, r => r.done.sales), gp: sum(rows, r => r.done.gp), n: sum(rows, r => r.done.n) },
+    run:  { sales: sum(rows, r => r.run?.sales), gp: sum(rows, r => r.run?.gp), n: sum(rows, r => r.run?.n) },
+  };
+  tot.total = { sales: tot.done.sales + tot.run.sales, gp: tot.done.gp + tot.run.gp };
+  const plan = agg(planRows(t), 'gp_plan');
+  const withPlan = { sales: tot.total.sales + plan.sales, gp: tot.total.gp + plan.gp };
+  const misc = (DATA.misc || []).filter(m => m.term_no === t);
+  const miscTotal = sum(misc, m => m.amount) + (n(s.misc_carry) || 0);
+  const adjust = n(s.prev_adjust) || 0;
+  const forecast = { sales: withPlan.sales, gp: withPlan.gp - miscTotal + adjust };
+  const nextT = t + 1, nx = inT(nextT);
+  const nextPlan = agg(nx.filter(k => k.status === '見積中'), 'gp_plan');
+  const nextCarry = agg(nx.filter(k => k.status !== '見積中'), 'gp_plan');
+  return { s, rows, tot, plan, withPlan, misc, miscTotal, adjust, forecast, nextPlan, nextCarry };
+}
+
+// ---------- 画面 ----------
+function tabsDef(){
+  const t = termNo;
+  return [
+    { id: 'summary', label: '工事物件表' },
+    ...LISTS.map(L => ({ id: L.id, label: L.label, cnt: listRows(L, t).length })),
+    { id: 'plan', label: '物件予定一覧', cnt: planRows(t).length },
+    { id: 'carry', label: `繰越案件（第${t + 1}期）`, cnt: carryRows(t).length },
+    { id: 'pend', label: '未確定工事（確認用）', cnt: pendRows(t).length },
+  ];
+}
+function render(){
+  const defs = tabsDef();
+  if (!defs.some(d => d.id === tab)) tab = 'summary';
+  $('doc-title').textContent = `㈱ナンワ 建設事業本部 工事物件表　第${termNo}期（令和${reiwa(termNo)}年度）`;
+  $('tabs').innerHTML = defs.map(d => `<button class="tab ${d.id === tab ? 'on' : ''}" data-t="${d.id}">${esc(d.label)}${d.cnt != null ? `<span class="cnt">${d.cnt}</span>` : ''}</button>`).join('');
+  $('tabs').querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => { tab = b.dataset.t; safeSet(TAB_STORE, tab); render(); window.scrollTo(0, 0); }));
+  const hasNew = KOJI.some(k => k.has_new);
+  const banner = hasNew ? '' : `<div class="banner">出来高・区分・支払日は、kintone 同期プログラムの更新後（次回の同期以降）に表示されます。</div>`;
+  // 印刷時は全シートを出すため、すべて描画して表示中以外を隠す
+  $('main').innerHTML = banner + defs.map(d => `<section class="sec ${d.id === tab ? '' : 'hidden'} ${d.id === 'pend' ? 'no-print' : ''}" id="sec-${d.id}">${renderSec(d.id)}</section>`).join('');
+  bindSummary();
+  document.title = `営業会議資料 第${termNo}期`;
+}
+function renderSec(id){
+  if (id === 'summary') return renderSummary();
+  const L = LISTS.find(x => x.id === id); if (L) return renderList(L);
+  if (id === 'plan') return renderPlan(planRows(termNo), '物件予定一覧', '状況が「見積中」の工事（kintone【会議資料】予定物件一覧と同じ）。');
+  if (id === 'carry') return renderCarry();
+  if (id === 'pend') return renderPlan(pendRows(termNo), '未確定工事一覧（印刷不要）', '状況が空欄の工事（kintone【会議資料】未確定工事と同じ・作成日順）。会議資料には載せない確認用です。', true);
+  return '';
+}
+
+function renderSummary(){
+  const t = termNo, S = summary(t), s = S.s;
+  const cell = (v, cls = 'num') => `<td class="${cls}">${yen(v)}</td>`;
+  const rc = (a, b) => `<td class="num">${rate(a, b)}</td>`;
+  const cnt = v => `<td class="num">${v == null ? '' : v}</td>`;
+  const body = S.rows.map(r => `<tr><td class="lbl">${esc(r.label)}${r.material ? ' <span class="muted no-print">（手入力）</span>' : ''}</td>
+      ${cell(r.done.sales)}${cell(r.done.gp)}${rc(r.done.gp, r.done.sales)}${cnt(r.done.n)}
+      ${r.run ? cell(r.run.sales) + cell(r.run.gp) + rc(r.run.gp, r.run.sales) + cnt(r.run.n) : '<td class="blank" colspan="4"></td>'}
+      ${cell(r.total.sales)}${cell(r.total.gp)}${rc(r.total.gp, r.total.sales)}</tr>`).join('');
+  const T = S.tot;
+  const tsales = n(s.target_sales), tgp = n(s.target_gp);
+  const achS = tsales ? S.forecast.sales / tsales : null, achG = tgp ? S.forecast.gp / tgp : null;
+  const months = termMonths(t);
+  const mon = DATA.monthly || [];
+  const cur = months.map(m => mon.find(x => x.term_no === t && x.ym === m));
+  const prev = termMonths(t - 1).map(m => mon.find(x => x.term_no === t - 1 && x.ym === m));
+  const lastRec = cur.filter(Boolean).pop();
+  const tiles = [
+    ['既受注合計（契約金額）', man(T.total.sales), '百万円', `粗利確定 ${man(T.done.sales)} ＋ 施工中 ${man(T.run.sales)}`],
+    ['既受注合計（粗利・人件費抜）', man(T.total.gp), '百万円', `粗利率 ${rate(T.total.gp, T.total.sales) || '—'}`],
+    ['今期完成見込み高', man(S.forecast.sales), '百万円', tsales ? `目標 ${man(tsales)} 百万円の ${(achS * 100).toFixed(1)}%` : '目標が未設定', achS],
+    ['今期粗利見込み', man(S.forecast.gp), '百万円', tgp ? `目標 ${man(tgp)} 百万円の ${(achG * 100).toFixed(1)}%（諸工事原価控除後）` : '目標が未設定', achG],
+  ];
+  return `
+  <div class="tiles">${tiles.map(([k, v, u, sub, m]) => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${esc(v)}<span class="u">${esc(u)}</span></div><div class="s">${esc(sub)}</div>${m != null ? `<div class="meter"><i style="width:${Math.min(100, m * 100)}%"></i></div>` : ''}</div>`).join('')}</div>
+
+  <div class="card">
+    <div class="head-row"><div><h2>第${t}期既受注</h2>
+      <div class="note">粗利確定分 = 状況「完了」の最終粗利（人件費抜）、施工中 = 状況「施工中・精算中」の予想粗利。契約金額は変更契約額（税抜）。材料販売は手入力。</div></div>
+      <div class="row no-print"><button id="btn-settings">目標・手入力の値を編集</button></div></div>
+    <div class="tbl-wrap"><table class="matrix">
+      <thead><tr><th rowspan="2">第${t}期既受注</th><th colspan="4">粗利確定分</th><th colspan="4">施工中</th><th colspan="3">合計</th></tr>
+      <tr><th>契約金額(円)</th><th>最終粗利(人件費抜)(円)</th><th>最終粗利率</th><th>件数</th><th>契約金額(円)</th><th>予想粗利(人件費抜)(円)</th><th>予想粗利率</th><th>件数</th><th>契約金額(円)</th><th>粗利(人件費抜)(円)</th><th>粗利率</th></tr></thead>
+      <tbody>${body}
+        <tr class="total"><td class="lbl">既受注合計</td>${cell(T.done.sales)}${cell(T.done.gp)}${rc(T.done.gp, T.done.sales)}${cnt(T.done.n)}${cell(T.run.sales)}${cell(T.run.gp)}${rc(T.run.gp, T.run.sales)}${cnt(T.run.n)}${cell(T.total.sales)}${cell(T.total.gp)}${rc(T.total.gp, T.total.sales)}</tr>
+      </tbody></table></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>受注予定分・今期見込み</h2>
+      <div class="note">受注予定分 = 物件予定一覧（状況「見積中」）。諸工事原価は前期繰越を含む月別の合計。</div>
+      <div class="tbl-wrap"><table class="matrix">
+        <thead><tr><th></th><th>契約金額(円)</th><th>粗利(人件費抜)(円)</th><th>粗利率</th><th>件数</th></tr></thead>
+        <tbody>
+          <tr><td class="lbl">受注予定分　Ａ物件及びＢ物件</td>${cell(S.plan.sales)}${cell(S.plan.gp)}${rc(S.plan.gp, S.plan.sales)}${cnt(S.plan.n)}</tr>
+          <tr class="total"><td class="lbl">既受注分合計 及び 受注予定工事 合計</td>${cell(S.withPlan.sales)}${cell(S.withPlan.gp)}${rc(S.withPlan.gp, S.withPlan.sales)}<td></td></tr>
+          <tr><td class="lbl">諸工事原価（前期繰越し含む）</td><td class="num">▲</td>${cell(S.miscTotal)}<td></td><td></td></tr>
+          <tr><td class="lbl">前期修正分</td><td></td>${cell(S.adjust || null)}<td></td><td></td></tr>
+          <tr class="total"><td class="lbl">今期完成見込み高（工事及び材料販売）</td>${cell(S.forecast.sales)}${cell(S.forecast.gp)}${rc(S.forecast.gp, S.forecast.sales)}<td></td></tr>
+          <tr><td class="lbl">目標達成率</td><td class="num">${achS == null ? '' : (achS * 100).toFixed(1) + '%'}</td><td class="num">${achG == null ? '' : (achG * 100).toFixed(1) + '%'}</td><td></td><td></td></tr>
+          <tr><td class="lbl">R${reiwa(t)}年度 完工・粗利 目標（人件費抜）</td>${cell(tsales)}${cell(tgp)}${rc(tgp, tsales)}<td></td></tr>
+          <tr><td class="lbl">人件費（見込）／ 最大人件費（見込）</td>${cell(s.labor_est)}${cell(s.labor_max)}<td></td><td></td></tr>
+        </tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="head-row"><div><h2>諸工事原価</h2><div class="note">総務入力（月別）。</div></div>
+        <div class="row no-print"><button id="btn-misc">月別の値を編集</button></div></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>月</th><th class="num">諸工事原価(円)</th></tr></thead>
+        <tbody><tr><td>第${t - 1}期繰越分</td><td class="num">${yen(s.misc_carry)}</td></tr>
+          ${months.map(m => { const x = S.misc.find(v => v.ym === m); return `<tr><td>${+m.slice(0, 4)}年${+m.slice(5)}月</td><td class="num">${x ? yen(x.amount) : ''}</td></tr>`; }).join('')}</tbody>
+        <tfoot><tr><td>今期 計</td><td class="num">${yen(S.miscTotal)}</td></tr></tfoot></table></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>第${t + 1}期繰越案件</h2>
+    <div class="note">第${t + 1}期の工事（kintone【会議資料】繰越案件と同じ）。見積中は「物件予定一覧」、それ以外は「繰越案件一覧」として集計。</div>
+    <div class="tbl-wrap"><table class="matrix">
+      <thead><tr><th></th><th>契約金額(円)</th><th>予想粗利(人件費抜)(円)</th><th>予想粗利率</th><th>件数</th></tr></thead>
+      <tbody>
+        <tr><td class="lbl">Ａ物件及びＢ物件（物件予定一覧）</td>${cell(S.nextPlan.sales)}${cell(S.nextPlan.gp)}${rc(S.nextPlan.gp, S.nextPlan.sales)}${cnt(S.nextPlan.n)}</tr>
+        <tr><td class="lbl">　〃　（繰越案件一覧）</td>${cell(S.nextCarry.sales)}${cell(S.nextCarry.gp)}${rc(S.nextCarry.gp, S.nextCarry.sales)}${cnt(S.nextCarry.n)}</tr>
+        <tr class="total"><td class="lbl">合計</td>${cell(S.nextPlan.sales + S.nextCarry.sales)}${cell(S.nextPlan.gp + S.nextCarry.gp)}${rc(S.nextPlan.gp + S.nextCarry.gp, S.nextPlan.sales + S.nextCarry.sales)}${cnt(S.nextPlan.n + S.nextCarry.n)}</tr>
+      </tbody></table></div>
+  </div>
+
+  <div class="card">
+    <div class="head-row"><div><h2>売上集計表（昨年対比）</h2>
+      <div class="note">各月の会議時点の既受注合計（諸工事原価含まず）。今期の値は会議のときに「記録」ボタンで保存します。${lastRec ? `最終記録: ${+lastRec.ym.slice(5)}月分（${lastRec.source}）` : 'まだ記録がありません'}</div></div>
+      <div class="row no-print"><button id="btn-record" class="primary">今の値を記録…</button></div></div>
+    <div class="legend"><span><i style="background:var(--series-1-soft)"></i>第${t - 1}期 契約金額</span><span><i style="background:var(--series-1)"></i>第${t}期 契約金額</span><span><i style="background:var(--series-2);height:2px;vertical-align:3px"></i>第${t}期 粗利率</span></div>
+    <div class="chart" id="chart-month"></div>
+    <div class="tbl-wrap" style="margin-top:12px"><table class="matrix">
+      <thead><tr><th></th>${months.map(m => `<th>${+m.slice(5)}月</th>`).join('')}</tr></thead>
+      <tbody>
+        <tr><td class="lbl">第${t - 1}期</td>${prev.map(x => cell(x?.sales)).join('')}</tr>
+        <tr><td class="lbl">　粗利</td>${prev.map(x => cell(x?.gp)).join('')}</tr>
+        <tr class="total"><td class="lbl">第${t}期</td>${cur.map(x => cell(x?.sales)).join('')}</tr>
+        <tr class="total"><td class="lbl">　粗利</td>${cur.map(x => cell(x?.gp)).join('')}</tr>
+        <tr><td class="lbl">前年比（売上）</td>${cur.map((x, i) => `<td class="num">${x && prev[i]?.sales ? (x.sales / prev[i].sales * 100).toFixed(1) + '%' : ''}</td>`).join('')}</tr>
+        <tr><td class="lbl">前年比（粗利）</td>${cur.map((x, i) => `<td class="num">${x && prev[i]?.gp ? (x.gp / prev[i].gp * 100).toFixed(1) + '%' : ''}</td>`).join('')}</tr>
+        <tr><td class="lbl">今期利益率</td>${cur.map(x => `<td class="num">${x ? rate(x.gp, x.sales) : ''}</td>`).join('')}</tr>
+      </tbody></table></div>
+  </div>`;
+}
+
+function monthChart(){
+  const el = $('chart-month'); if (!el) return;
+  const t = termNo, months = termMonths(t), mon = DATA.monthly || [];
+  const cur = months.map(m => mon.find(x => x.term_no === t && x.ym === m));
+  const prev = termMonths(t - 1).map(m => mon.find(x => x.term_no === t - 1 && x.ym === m));
+  const W = Math.max(320, el.clientWidth || 900), H = W < 600 ? 200 : 240, L = 52, R = 44, T = 12, B = 26;
+  const max = Math.max(1, ...cur.map(x => n(x?.sales) || 0), ...prev.map(x => n(x?.sales) || 0));
+  const step = niceStep(max / 4), top = Math.ceil(max / step) * step;
+  const y = v => T + (H - T - B) * (1 - v / top);
+  const yr = v => T + (H - T - B) * (1 - v / 0.3);               // 粗利率 0〜30%
+  const bw = (W - L - R) / 12;
+  let g = '';
+  for (let v = 0; v <= top + 1; v += step) g += `<line class="gridline" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${(v / 1e6).toLocaleString('ja-JP')}</text>`;
+  [0, 0.1, 0.2, 0.3].forEach(r => g += `<text x="${W - R + 6}" y="${yr(r) + 4}">${r * 100}%</text>`);
+  let bars = '', pts = [];
+  months.forEach((m, i) => {
+    const x0 = L + i * bw, w = bw * 0.34;
+    [[prev[i], 'var(--series-1-soft)', x0 + bw * 0.14], [cur[i], 'var(--series-1)', x0 + bw * 0.14 + w + 2]].forEach(([d, c, x]) => {
+      const v = n(d?.sales); if (!v) return; const h = y(0) - y(v), rad = Math.min(3, w / 2, h);
+      bars += `<path fill="${c}" d="M${x},${y(0)} V${y(v) + rad} Q${x},${y(v)} ${x + rad},${y(v)} H${x + w - rad} Q${x + w},${y(v)} ${x + w},${y(v) + rad} V${y(0)} Z"/>`;
+    });
+    if (cur[i]?.sales) pts.push([x0 + bw / 2, yr(cur[i].gp / cur[i].sales)]);
+    bars += `<rect class="hit" data-i="${i}" x="${x0}" y="${T}" width="${bw}" height="${H - T - B}" fill="transparent"/>
+      <text x="${x0 + bw / 2}" y="${H - B + 16}" text-anchor="middle" style="fill:var(--text-secondary);font-size:11px">${+m.slice(5)}月</text>`;
+  });
+  const line = pts.length ? `<polyline fill="none" stroke="var(--series-2)" stroke-width="2" points="${pts.map(p => p.join(',')).join(' ')}"/>` + pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="var(--series-2)"/>`).join('') : '';
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="売上集計表（百万円）"><g class="axis">${g}</g>${bars}${line}</svg>`;
+  el.querySelectorAll('.hit').forEach(r => { const i = +r.dataset.i;
+    r.addEventListener('mousemove', e => showTip(e, `<b>${+months[i].slice(5)}月</b><br>第${t}期 ${cur[i] ? man(cur[i].sales) + ' 百万円（粗利 ' + man(cur[i].gp) + '・' + rate(cur[i].gp, cur[i].sales) + '）' : '未記録'}<br>第${t - 1}期 ${prev[i] ? man(prev[i].sales) + ' 百万円（粗利 ' + man(prev[i].gp) + '）' : '—'}`));
+    r.addEventListener('mouseleave', hideTip); });
+}
+function niceStep(raw){ const p = Math.pow(10, Math.floor(Math.log10(raw || 1))); const m = raw / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
+
+// ---------- 工事現況表 ----------
+const nameCell = k => `<td class="wrap" title="${esc(k.official || '')}"><a href="${esc(k.url)}" target="_blank" rel="noopener">${esc(k.name || '（名称なし）')}</a></td>`;
+function renderList(L){
+  const t = termNo, rows = listRows(L, t), run = L.mode === 'run';
+  const head = ['No', '工事番号', '工事名', '代理人', '工期(自)', '工期(至)', '工事場所', '施主名', '発注者(元請)', '発注者2', '注文書', '契約額', '増減', '変更契約額',
+    ...(run ? ['予想粗利', '予想粗利率', '原価', '粗利率', '出来高'] : ['最終粗利', '粗利率']), '支払月', '請求日', '請求状況', '備考', '工種'];
+  const numCols = new Set(['契約額', '増減', '変更契約額', '予想粗利', '予想粗利率', '原価', '粗利率', '最終粗利', '出来高']);
+  const body = rows.map((k, i) => `<tr class="${isNew(k) ? 'new' : ''}"><td class="num">${i + 1}</td><td>${esc(k.no || '')}</td>${nameCell(k)}<td>${esc(k.manager || '')}</td>
+    <td>${ymdFull(k.start)}</td><td>${ymdFull(k.end)}</td><td class="wrap">${esc(k.place || '')}</td><td>${esc(k.owner || '')}</td><td>${esc(k.prime || '')}</td><td>${esc(k.other || '')}</td><td>${esc(k.order_doc || '')}</td>
+    <td class="num">${yen(k.contract)}</td><td class="num">${yen(k.change)}</td><td class="num">${yen(k.revised)}</td>
+    ${run ? `<td class="num">${yen(k.gp_plan)}</td><td class="num">${rate(k.gp_plan, k.revised)}</td><td class="num">${yen(k.cost)}</td><td class="num">${k.revised ? rate((k.revised || 0) - (k.cost || 0), k.revised) : ''}</td><td class="num">${esc(k.dekidaka ?? '')}${k.dekidaka != null && /^\d+(\.\d+)?$/.test(k.dekidaka) ? '%' : ''}</td>`
+          : `<td class="num">${yen(k.gp_final)}</td><td class="num">${rate(k.gp_final, k.revised)}</td>`}
+    <td>${month(k.pay_date)}</td><td>${ymdFull(k.bill_date)}</td><td>${esc(k.bill_status || '')}</td><td class="wrap">${esc(k.note || '')}</td><td>${esc(k.kind || '')}</td></tr>`).join('');
+  const gpKey = run ? 'gp_plan' : 'gp_final';
+  const span = 11;
+  const foot = `<tr><td colspan="${span}">小計（${rows.length} 件）</td><td class="num">${yen(sum(rows, k => k.contract))}</td><td class="num">${yen(sum(rows, k => k.change))}</td><td class="num">${yen(sum(rows, k => k.revised))}</td>
+    <td class="num">${yen(sum(rows, k => k[gpKey]))}</td><td class="num">${rate(sum(rows, k => k[gpKey]), sum(rows, k => k.revised))}</td>
+    ${run ? `<td class="num">${yen(sum(rows, k => k.cost))}</td><td></td><td></td>` : ''}<td colspan="5"></td></tr>`;
+  return `<div class="card"><h2>工事現況表　第${t}期（令和${reiwa(t)}年度）売上・粗利　${esc(L.title)}</h2>
+    <div class="note">kintone の一覧【${t}期会議資料】${esc(L.kv)} と同じ絞り込み：受注形態「${esc(L.type)}」・状況「${L.st.join('・')}」、工事番号順。黄色はこの1か月に kintone へ登録された工事。工事名から kintone を開けます。${run ? '粗利率（右）は 原価 を引いた現時点の率。' : ''}</div>
+    <div class="tbl-wrap tall"><table data-sheet="${esc(L.label)}"><thead><tr>${head.map(h => `<th class="${numCols.has(h) ? 'num' : ''}">${h}</th>`).join('')}</tr></thead>
+    <tbody>${body || `<tr><td colspan="${head.length}" class="muted">該当する工事はありません</td></tr>`}</tbody><tfoot>${foot}</tfoot></table></div></div>`;
+}
+
+// ---------- 物件予定一覧・未確定工事 ----------
+function gantt(k, t){
+  // 年度（4月〜3月）。第48期 → 令和8年度 = 2026年4月〜2027年3月
+  const y0 = t + 1978, s = k.start ? new Date(k.start) : null, e = k.end ? new Date(k.end) : null;
+  if (!s && !e) return '';
+  const idx = d => (d.getFullYear() - y0) * 12 + d.getMonth() - 3;
+  const a = s ? idx(s) : idx(e), b = e ? idx(e) : a;
+  return `<div class="gantt" title="${ymdFull(k.start)} 〜 ${ymdFull(k.end)}">${Array.from({ length: 12 }, (_, i) => `<span class="${i >= a && i <= b ? 'on' : ''}"></span>`).join('')}</div>`;
+}
+function renderPlan(rows, title, note, pending){
+  const t = termNo;
+  const gh = `<div class="gantt-h">${[4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3].map(m => `<span>${m}</span>`).join('')}</div>`;
+  const body = rows.map((k, i) => `<tr class="${isNew(k) ? 'new' : ''}"><td class="num">${i + 1}</td><td>${esc(kubunOf(k))}</td>${pending ? `<td>${esc(k.type || '')}</td><td>${ymdFull(k.created)}</td>` : ''}${nameCell(k)}
+    <td class="wrap">${esc(k.place || '')}</td><td>${esc(k.prime && k.prime !== '元請' ? k.prime : (k.owner || k.prime || ''))}</td>
+    <td class="num">${yen(k.revised)}</td><td class="num">${yen(k.gp_plan)}</td><td class="num">${rate(k.gp_plan, k.revised)}</td><td>${gantt(k, t)}</td><td class="wrap">${esc(k.note || '')}</td></tr>`).join('');
+  const cols = pending ? 14 : 12;
+  return `<div class="card"><h2>${esc(title)}　第${t}期</h2><div class="note">${esc(note)} 工期は 令和${reiwa(t)}年度（4月〜3月）の棒で表示。</div>
+    <div class="tbl-wrap tall"><table data-sheet="${pending ? '未確定工事' : '物件予定一覧'}"><thead><tr><th class="num">No</th><th>区分</th>${pending ? '<th>受注形態</th><th>登録日</th>' : ''}<th>工事名</th><th>工事場所</th><th>発注者</th><th class="num">請負金額</th><th class="num">予想粗利</th><th class="num">粗利率</th><th>工期 ${gh}</th><th>備考</th></tr></thead>
+    <tbody>${body || `<tr><td colspan="${cols}" class="muted">該当する工事はありません</td></tr>`}</tbody>
+    <tfoot><tr><td colspan="${pending ? 7 : 5}">小計（${rows.length} 件）</td><td class="num">${yen(sum(rows, k => k.revised))}</td><td class="num">${yen(sum(rows, k => k.gp_plan))}</td><td class="num">${rate(sum(rows, k => k.gp_plan), sum(rows, k => k.revised))}</td><td colspan="2"></td></tr></tfoot></table></div></div>`;
+}
+
+// ---------- 繰越案件 ----------
+function renderCarry(){
+  const t = termNo, rows = carryRows(t);
+  const body = rows.map((k, i) => `<tr class="${isNew(k) ? 'new' : ''}"><td class="num">${i + 1}</td><td>${esc(kubunOf(k))}</td><td>${esc(k.no || '')}</td>${nameCell(k)}<td>${esc(k.manager || '')}</td>
+    <td>${ymdFull(k.start)}</td><td>${ymdFull(k.end)}</td><td class="wrap">${esc(k.place || '')}</td><td>${esc(k.owner || '')}</td><td>${esc(k.prime || '')}</td><td>${esc(k.other || '')}</td><td>${esc(k.order_doc || '')}</td>
+    <td class="num">${yen(k.contract)}</td><td class="num">${yen(k.change)}</td><td class="num">${yen(k.revised)}</td><td class="num">${yen(k.gp_plan)}</td><td class="num">${rate(k.gp_plan, k.revised)}</td>
+    <td class="num">${esc(k.dekidaka ?? '')}</td><td>${k.status ? `<span class="badge">${esc(k.status)}</span>` : ''}</td><td>${esc(k.type || '')}</td><td class="wrap">${esc(k.note || '')}</td><td>${esc(k.kind || '')}</td></tr>`).join('');
+  return `<div class="card"><h2>繰越案件一覧　第${t + 1}期</h2><div class="note">「第　期」が第${t + 1}期の工事（kintone【会議資料】繰越案件と同じ・受注形態順）。</div>
+    <div class="tbl-wrap tall"><table data-sheet="繰越案件"><thead><tr><th class="num">No</th><th>区分</th><th>工事番号</th><th>工事名</th><th>代理人</th><th>工期(自)</th><th>工期(至)</th><th>工事場所</th><th>施主名</th><th>発注者(元請)</th><th>発注者2</th><th>注文書</th>
+    <th class="num">契約額</th><th class="num">増減</th><th class="num">変更契約額</th><th class="num">予想粗利</th><th class="num">粗利率</th><th class="num">出来高</th><th>状況</th><th>受注形態</th><th>備考</th><th>工種</th></tr></thead>
+    <tbody>${body || '<tr><td colspan="22" class="muted">該当する工事はありません</td></tr>'}</tbody>
+    <tfoot><tr><td colspan="12">小計（${rows.length} 件）</td><td class="num">${yen(sum(rows, k => k.contract))}</td><td class="num">${yen(sum(rows, k => k.change))}</td><td class="num">${yen(sum(rows, k => k.revised))}</td><td class="num">${yen(sum(rows, k => k.gp_plan))}</td><td class="num">${rate(sum(rows, k => k.gp_plan), sum(rows, k => k.revised))}</td><td colspan="5"></td></tr></tfoot></table></div></div>`;
+}
+
+// ---------- 入力（目標・諸工事原価・売上集計表の記録） ----------
+const SETTING_FIELDS = [
+  ['sec', '目標'], ['target_sales', '完工・粗利目標（人件費抜）完工高'], ['target_gp', '完工・粗利目標（人件費抜）粗利'],
+  ['labor_est', '人件費（見込）'], ['labor_max', '最大人件費（見込）'],
+  ['sec', '手入力の値'], ['material_sales', '材料販売（粗利確定分）契約金額'], ['material_gp', '材料販売（粗利確定分）最終粗利'],
+  ['prev_adjust', '前期修正分（粗利。マイナスも可）'], ['misc_carry', '諸工事原価 前期繰越分'],
+];
+const toNum = v => { v = String(v ?? '').replace(/[,，\s円]/g, ''); return v === '' ? null : (isNaN(v) ? NaN : Number(v)); };
+const fmtIn = v => v == null ? '' : Math.round(v).toLocaleString('ja-JP');
+async function rpc(name, args){ const { data, error } = await sb.rpc(name, { p_key: safeGet(KEY_STORE), ...args }); if (error) throw error; return data; }
+function bindSummary(){
+  monthChart();
+  const bs = $('btn-settings'), bm = $('btn-misc'), br = $('btn-record');
+  if (bs) bs.onclick = () => {
+    const s = settingsOf(termNo);
+    $('dlg-settings-note').textContent = `第${termNo}期の値です。kintone に無い値（Excel では総務が手入力していた欄）。保存すると、閲覧キーを持つ全員の画面に反映されます。`;
+    $('settings-form').innerHTML = SETTING_FIELDS.map(([k, l]) => k === 'sec' ? `<div class="sec">${l}</div>` : `<label for="set-${k}">${l}</label><input id="set-${k}" inputmode="numeric" value="${fmtIn(n(s[k]))}">`).join('');
+    $('settings-err').textContent = ''; $('dlg-settings').showModal();
+  };
+  if (bm) bm.onclick = () => {
+    const ms = termMonths(termNo), misc = (DATA.misc || []).filter(m => m.term_no === termNo);
+    $('misc-form').innerHTML = ms.map(m => `<label for="misc-${m}">${+m.slice(0, 4)}年${+m.slice(5)}月</label><input id="misc-${m}" inputmode="numeric" value="${fmtIn(n(misc.find(x => x.ym === m)?.amount))}">`).join('');
+    $('misc-err').textContent = ''; $('dlg-misc').showModal();
+  };
+  if (br) br.onclick = () => {
+    const S = summary(termNo), ms = termMonths(termNo);
+    const d = new Date(); const prevYm = ymStr(new Date(d.getFullYear(), d.getMonth() - 1, 1));
+    const def = ms.includes(prevYm) ? prevYm : (ms.includes(ymStr(d)) ? ymStr(d) : ms[0]);
+    const done = new Set((DATA.monthly || []).filter(x => x.term_no === termNo).map(x => x.ym));
+    $('rec-ym').innerHTML = ms.map(m => `<option value="${m}" ${m === def ? 'selected' : ''}>${+m.slice(5)}月${done.has(m) ? '（記録済み・上書き）' : ''}</option>`).join('');
+    $('rec-sales').textContent = Math.round(S.tot.total.sales).toLocaleString('ja-JP') + ' 円';
+    $('rec-gp').textContent = Math.round(S.tot.total.gp).toLocaleString('ja-JP') + ' 円';
+    $('rec-err').textContent = ''; $('dlg-record').showModal();
+  };
+}
+['settings', 'misc', 'rec'].forEach(p => $(p + '-cancel').addEventListener('click', () => $(p === 'rec' ? 'dlg-record' : 'dlg-' + p).close()));
+$('settings-save').addEventListener('click', async () => {
+  const p = {};
+  for (const [k] of SETTING_FIELDS) { if (k === 'sec') continue; const v = toNum($('set-' + k).value); if (Number.isNaN(v)) { $('settings-err').textContent = '数字で入力してください'; return; } p[k] = v; }
+  $('settings-save').disabled = true;
+  try { await rpc('kaigi_save_settings', { p_term_no: termNo, p }); $('dlg-settings').close(); await reload(); }
+  catch (e) { $('settings-err').textContent = '保存できませんでした: ' + (e.message || e); }
+  $('settings-save').disabled = false;
+});
+$('misc-save').addEventListener('click', async () => {
+  const items = [];
+  for (const m of termMonths(termNo)) { const v = toNum($('misc-' + m).value); if (Number.isNaN(v)) { $('misc-err').textContent = '数字で入力してください'; return; } items.push({ ym: m, amount: v }); }
+  $('misc-save').disabled = true;
+  try { await rpc('kaigi_save_misc', { p_term_no: termNo, p_items: items }); $('dlg-misc').close(); await reload(); }
+  catch (e) { $('misc-err').textContent = '保存できませんでした: ' + (e.message || e); }
+  $('misc-save').disabled = false;
+});
+$('rec-save').addEventListener('click', async () => {
+  const S = summary(termNo);
+  $('rec-save').disabled = true;
+  try { await rpc('kaigi_record_month', { p_term_no: termNo, p_ym: $('rec-ym').value, p_sales: Math.round(S.tot.total.sales), p_gp: Math.round(S.tot.total.gp) }); $('dlg-record').close(); await reload(); }
+  catch (e) { $('rec-err').textContent = '記録できませんでした: ' + (e.message || e); }
+  $('rec-save').disabled = false;
+});
+
+// ---------- Excel 出力（表示中の期の全シート） ----------
+$('xlsx').addEventListener('click', () => {
+  if (typeof XLSX === 'undefined') { alert('Excel 出力の部品を読み込めませんでした。ネットワークを確認してください。'); return; }
+  const wb = XLSX.utils.book_new();
+  const S = summary(termNo), T = S.tot, s = S.s;
+  const r3 = (a, b) => b ? Math.round(a / b * 1000) / 1000 : '';
+  const aoa = [[`㈱ナンワ 建設事業本部 工事物件表 第${termNo}期（令和${reiwa(termNo)}年度）`, '', '', '', '', '', '', '', '', '', '', new Date().toLocaleDateString('ja-JP')], [],
+    [`第${termNo}期既受注`, '粗利確定分 契約金額', '最終粗利(人件費抜)', '最終粗利率', '件数', '施工中 契約金額', '予想粗利(人件費抜)', '予想粗利率', '件数', '合計 契約金額', '粗利(人件費抜)', '粗利率'],
+    ...S.rows.map(r => [r.label, r.done.sales, r.done.gp, r3(r.done.gp, r.done.sales), r.done.n ?? '', r.run?.sales ?? '', r.run?.gp ?? '', r.run ? r3(r.run.gp, r.run.sales) : '', r.run?.n ?? '', r.total.sales, r.total.gp, r3(r.total.gp, r.total.sales)]),
+    ['既受注合計', T.done.sales, T.done.gp, r3(T.done.gp, T.done.sales), T.done.n, T.run.sales, T.run.gp, r3(T.run.gp, T.run.sales), T.run.n, T.total.sales, T.total.gp, r3(T.total.gp, T.total.sales)], [],
+    ['受注予定分 Ａ物件及びＢ物件', '', '', '', '', S.plan.sales, S.plan.gp, r3(S.plan.gp, S.plan.sales), S.plan.n],
+    ['既受注分合計 及び 受注予定工事 合計', '', '', '', '', S.withPlan.sales, S.withPlan.gp, r3(S.withPlan.gp, S.withPlan.sales)],
+    ['諸工事原価（前期繰越し含む）', '', '', '', '', '▲', S.miscTotal],
+    ['前期修正分', '', '', '', '', '', S.adjust],
+    ['今期完成見込み高（工事及び材料販売）', '', '', '', '', S.forecast.sales, S.forecast.gp, r3(S.forecast.gp, S.forecast.sales)],
+    ['目標達成率', '', '', '', '', s.target_sales ? r3(S.forecast.sales, s.target_sales) : '', s.target_gp ? r3(S.forecast.gp, s.target_gp) : ''],
+    [`R${reiwa(termNo)}年度 完工・粗利 目標（人件費抜）`, '', '', '', '', n(s.target_sales) ?? '', n(s.target_gp) ?? '', s.target_sales ? r3(s.target_gp, s.target_sales) : '', '', n(s.labor_est) ?? '', n(s.labor_max) ?? ''], [],
+    [`第${termNo + 1}期繰越案件`, '', '', '', '', '契約金額', '予想粗利', '予想粗利率', '件数'],
+    ['Ａ物件及びＢ物件（物件予定一覧）', '', '', '', '', S.nextPlan.sales, S.nextPlan.gp, r3(S.nextPlan.gp, S.nextPlan.sales), S.nextPlan.n],
+    ['〃（繰越案件一覧）', '', '', '', '', S.nextCarry.sales, S.nextCarry.gp, r3(S.nextCarry.gp, S.nextCarry.sales), S.nextCarry.n]];
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [{ wch: 36 }, ...Array(11).fill({ wch: 15 })];
+  XLSX.utils.book_append_sheet(wb, ws, '工事物件表');
+  document.querySelectorAll('#main table[data-sheet]').forEach(tb => {
+    const sh = XLSX.utils.table_to_sheet(tb, { raw: false });
+    XLSX.utils.book_append_sheet(wb, sh, tb.dataset.sheet.slice(0, 31));
+  });
+  const d = new Date();
+  XLSX.writeFile(wb, `営業会議資料_第${termNo}期_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.xlsx`);
+});
+
+window.addEventListener('resize', () => { if (DATA && tab === 'summary') monthChart(); });
+
+// ---------- 起動 ----------
+(async () => {
+  const key = safeGet(KEY_STORE); if (!key) return;
+  try { DATA = await load(key); start(); } catch (e) { safeSet(KEY_STORE, null); }
+})();
+</script>
+</body>
+</html>
