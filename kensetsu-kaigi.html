@@ -96,6 +96,9 @@ a{color:var(--series-1);}
 .gantt span.on{background:var(--series-1);}
 .gantt-h{display:grid;grid-template-columns:repeat(12,22px);font-size:10px;color:var(--text-muted);}
 .gantt-h span{text-align:center;}
+.drop{border:1.5px dashed var(--border);border-radius:10px;padding:14px;text-align:center;color:var(--text-secondary);font-size:12px;margin-bottom:10px;}
+.drop.over{border-color:var(--series-1);background:var(--sum-bg);}
+td.pre{white-space:pre-line;min-width:160px;max-width:260px;}
 dialog{border:1px solid var(--border);border-radius:14px;padding:22px;background:var(--surface-1);color:var(--text-primary);max-width:560px;width:calc(100% - 32px);}
 dialog::backdrop{background:rgba(0,0,0,.35);}
 dialog h3{font-size:15px;margin-bottom:6px;}
@@ -233,6 +236,7 @@ $('print').addEventListener('click', () => window.print());
 $('term').addEventListener('change', e => { termNo = +e.target.value; render(); });
 
 function start(keep){
+  if (!keep) loadBidsStore();
   $('gate').classList.add('hidden'); $('app').classList.remove('hidden');
   KOJI = (DATA.koji || []).map(k => ({ ...k, revised: n(k.revised), contract: n(k.contract), change: n(k.change),
     gp_plan: n(k.gp_plan), gp_final: n(k.gp_final), cost: n(k.cost) }));
@@ -330,7 +334,7 @@ function render(){
 function renderSec(id){
   if (id === 'summary') return renderSummary();
   const L = LISTS.find(x => x.id === id); if (L) return renderList(L);
-  if (id === 'plan') return renderPlan(planRows(termNo), '物件予定一覧', '状況が「見積中」の工事（kintone【会議資料】予定物件一覧と同じ）。');
+  if (id === 'plan') return renderPlan(planRows(termNo), '物件予定一覧', '状況が「見積中」の工事（kintone【会議資料】予定物件一覧と同じ）。') + renderBids();
   if (id === 'carry') return renderCarry();
   if (id === 'pend') return renderPlan(pendRows(termNo), '未確定工事一覧（印刷不要）', '状況が空欄の工事（kintone【会議資料】未確定工事と同じ・作成日順）。会議資料には載せない確認用です。', true);
   return '';
@@ -537,8 +541,81 @@ const SETTING_FIELDS = [
 const toNum = v => { v = String(v ?? '').replace(/[,，\s円]/g, ''); return v === '' ? null : (isNaN(v) ? NaN : Number(v)); };
 const fmtIn = v => v == null ? '' : Math.round(v).toLocaleString('ja-JP');
 async function rpc(name, args){ const { data, error } = await sb.rpc(name, { p_key: safeGet(KEY_STORE), ...args }); if (error) throw error; return data; }
+
+// ---------- 入札予定（入札予定表.xlsx を読み込んで表示） ----------
+// 入札予定表の「入札予定 R○年度」シート: A 入札開始日 / B 入札締切日（＝開札）/ C 時刻 / D 発注者 / E 工事名 / F 工種（＝工事概要）/ G 予定価格 / P 場所
+// 基準日（既定は今日）以降に開札する案件を表示。読み込んだ内容はこのブラウザにだけ保存（共有されない）
+const BIDS_STORE = 'kensetsu_kaigi_bids';
+let BIDS = null, bidBase = null;
+function todayStr(){ const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function loadBidsStore(){ try { const v = localStorage.getItem(BIDS_STORE); BIDS = v ? JSON.parse(v) : null; } catch (e) { BIDS = null; } }
+function saveBidsStore(){ try { BIDS ? localStorage.setItem(BIDS_STORE, JSON.stringify(BIDS)) : localStorage.removeItem(BIDS_STORE); } catch (e) {} }
+const cellStr = v => v == null ? '' : String(v).replace(/\r/g, '').trim();
+function cellDate(v){
+  if (v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+  if (typeof v === 'string') { const m = v.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/); if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`; }
+  return null;
+}
+function cellTime(v){
+  if (v instanceof Date && !isNaN(v)) return `${v.getHours()}:${String(v.getMinutes()).padStart(2, '0')}`;
+  if (typeof v === 'number' && v < 1) { const m = Math.round(v * 1440); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; }
+  return cellStr(v);
+}
+async function readBidsFile(file){
+  if (typeof XLSX === 'undefined') throw new Error('Excel を読む部品を読み込めませんでした');
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+  const sheets = wb.SheetNames.filter(n => /^入札予定/.test(n.replace(/\s/g, '')));
+  if (!sheets.length) throw new Error('「入札予定 ○年度」のシートが見つかりません');
+  const keepFrom = new Date(Date.now() - 400 * 864e5);       // 保存は直近1年余りの分だけ
+  const rows = [];
+  sheets.forEach(sn => {
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: null });
+    aoa.slice(2).forEach(r => {
+      const close = cellDate(r[1]), name = cellStr(r[4]);
+      if (!close || !name || new Date(close) < keepFrom) return;
+      rows.push({ start: cellDate(r[0]), close, time: cellTime(r[2]), owner: cellStr(r[3]).replace(/\n/g, ''), name, kind: cellStr(r[5]),
+        price: typeof r[6] === 'number' ? r[6] : cellStr(r[6]), place: cellStr(r[15]), sheet: sn.trim() });
+    });
+  });
+  rows.sort((a, b) => a.close.localeCompare(b.close) || String(a.time).localeCompare(String(b.time)));
+  return { file: file.name, loadedAt: new Date().toISOString(), sheets: sheets.map(s => s.trim()), rows };
+}
+function renderBids(){
+  if (!bidBase) bidBase = todayStr();
+  const rows = BIDS ? BIDS.rows.filter(r => r.close >= bidBase) : [];
+  const info = BIDS ? `読み込み済み: ${esc(BIDS.file)}（${new Date(BIDS.loadedAt).toLocaleString('ja-JP')}）` : 'まだ読み込んでいません';
+  return `<div class="card" id="bids-card"><div class="head-row"><div><h2>●入札予定</h2>
+    <div class="note">入札予定表.xlsx の「入札予定 ○年度」シートから、基準日以降に開札（入札締切日）の案件を表示します。読み込んだ内容はこのパソコンのブラウザにだけ保存されます（他の人の画面には出ません）。<br>${info}</div></div>
+    <div class="row no-print"><label class="muted" for="bid-base">基準日</label><input type="date" id="bid-base" value="${bidBase}">
+      <button id="bid-pick">入札予定表を読み込む</button>${BIDS ? '<button id="bid-clear">消去</button>' : ''}<input type="file" id="bid-file" accept=".xlsx,.xlsm,.xls" class="hidden"></div></div>
+    <div class="drop no-print" id="bid-drop">ここに 入札予定表.xlsx をドラッグ＆ドロップ（またはボタンから選択）</div>
+    <div class="err" id="bid-err"></div>
+    <div class="tbl-wrap tall"><table data-sheet="入札予定"><thead><tr><th class="num">No</th><th>開札</th><th>時刻</th><th>工事名</th><th>場所</th><th>発注者</th><th class="num">予定価格</th><th>工事概要</th></tr></thead>
+    <tbody>${rows.map((r, i) => `<tr><td class="num">${i + 1}</td><td>${ymdFull(r.close)}</td><td>${esc(r.time)}</td><td class="wrap">${esc(r.name)}</td><td class="wrap">${esc(r.place)}</td><td>${esc(r.owner)}</td>
+      <td class="num">${typeof r.price === 'number' ? yen(r.price) : esc(r.price)}</td><td class="pre">${esc(r.kind)}</td></tr>`).join('')
+      || `<tr><td colspan="8" class="muted">${BIDS ? '基準日以降に開札する案件はありません' : '入札予定表を読み込むと表示されます'}</td></tr>`}</tbody>
+    <tfoot><tr><td colspan="8">${rows.length} 件（基準日 ${ymdFull(bidBase)} 以降）</td></tr></tfoot></table></div></div>`;
+}
+function bindBids(){
+  const card = $('bids-card'); if (!card) return;
+  const handle = async file => {
+    $('bid-err').textContent = '読み込んでいます…';
+    try { BIDS = await readBidsFile(file); saveBidsStore(); render(); }
+    catch (e) { $('bid-err').textContent = '読み込めませんでした: ' + (e.message || e); }
+  };
+  $('bid-pick').onclick = () => $('bid-file').click();
+  $('bid-file').onchange = e => { const f = e.target.files[0]; if (f) handle(f); };
+  $('bid-base').onchange = e => { bidBase = e.target.value || todayStr(); render(); };
+  if ($('bid-clear')) $('bid-clear').onclick = () => { BIDS = null; saveBidsStore(); render(); };
+  const drop = $('bid-drop');
+  ['dragenter', 'dragover'].forEach(ev => card.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => card.addEventListener(ev, e => { e.preventDefault(); if (ev === 'drop' || !card.contains(e.relatedTarget)) drop.classList.remove('over'); }));
+  card.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handle(f); });
+}
+
 function bindSummary(){
   monthChart();
+  bindBids();
   const bs = $('btn-settings'), bm = $('btn-misc'), br = $('btn-record');
   if (bs) bs.onclick = () => {
     const s = settingsOf(termNo);
