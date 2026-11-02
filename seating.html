@@ -275,7 +275,7 @@ async function write(promise,okMsg){
 
 function derive(){
   const seatById=Object.fromEntries(S.seats.map(s=>[s.id,s])),bySeat={};
-  for(const p of S.people)if(p.seat_id&&seatById[p.seat_id])bySeat[p.seat_id]=p;
+  for(const p of S.people)for(const sid of seatIdsOf(p))if(seatById[sid])bySeat[sid]=p;
   const seatNo={};
   for(const f of FLOORS)S.seats.filter(s=>s.floor===f).sort((a,b)=>a.y-b.y||a.x-b.x).forEach((s,i)=>seatNo[s.id]=i+1);
   const phoneById=Object.fromEntries(S.phones.map(x=>[x.id,x])),seatsByPhone={};
@@ -334,7 +334,10 @@ const hm=d=>`${d.getHours()}:${String(d.getMinutes()).padStart(2,"0")}`;
 function evTimeText(e){const{st,en,allDay}=evSpan(e);if(allDay)return"終日";return hm(st)+(e.end_time?"-"+hm(en):"〜");}
 const fmtTime=iso=>{const d=new Date(iso);return`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
 const hbStyle=hb=>`--dc:${HB_COLOR[hb]||'#888'}`;
+// 1人が複数の席を持つことがある（社長の各フロアの作業席など）。seat_id はいつもの席、seat_ids は兼務席も含めたすべて
+const seatIdsOf=p=>Array.isArray(p.seat_ids)&&p.seat_ids.length?p.seat_ids:(p.seat_id?[p.seat_id]:[]);
 const seatOf=(p,D)=>p.seat_id?D.seatById[p.seat_id]||null:null;
+const seatsOf=(p,D)=>seatIdsOf(p).map(id=>D.seatById[id]).filter(Boolean);
 
 /* ---------- render ---------- */
 function render(){if(drag){pendingRender=true;return;}renderTabs();
@@ -351,7 +354,7 @@ function selected(kind,id){const sh=S.sheet;if(!sh)return false;
   if(kind==="area")return sh.mode==="area"&&sh.id===id;
   if(kind==="phone")return sh.mode==="phone"&&sh.id===id;
   if(sh.mode==="seat")return sh.id===id;
-  if(sh.mode==="detail"){const p=S.people.find(x=>x.id===sh.id);return!!p&&p.seat_id===id;}
+  if(sh.mode==="detail"){if(sh.seat)return sh.seat===id;const p=S.people.find(x=>x.id===sh.id);return!!p&&p.seat_id===id;}
   return false;}
 function renderPlan(){
   const D=derive(),plan=$("#plan");plan.replaceChildren();plan.classList.toggle("editing",S.edit);
@@ -443,13 +446,13 @@ plan.addEventListener("click",e=>{
   if(suppressClick)return;const seat=e.target.closest(".seat"),area=e.target.closest(".area");
   const phone=e.target.closest(".phone");
   if(phone){openSheet("phone",phone.dataset.id);return;}
-  if(seat){const p=derive().bySeat[seat.dataset.id];if(S.edit)openSheet("seat",seat.dataset.id);else if(p)openSheet("detail",p.id);else toast("空席です");}
+  if(seat){const p=derive().bySeat[seat.dataset.id];if(S.edit)openSheet("seat",seat.dataset.id);else if(p)openSheet("detail",p.id,seat.dataset.id);else toast("空席です");}
   else if(area&&S.edit)openSheet("area",area.dataset.id);
   else if(area){const a=S.areas.find(x=>x.id===area.dataset.id);if(a&&a.facility)openSheet("room",a.id);}
 });
 
 /* ---------- sheet ---------- */
-function openSheet(mode,id){S.sheet={mode,id};renderSheet();renderPlan();}
+function openSheet(mode,id,seat){S.sheet={mode,id,seat:seat||null};renderSheet();renderPlan();}
 function closeSheet(){if(!S.sheet)return;S.sheet=null;$("#sheet").hidden=true;renderPlan();}
 function renderSheet(){
   const sh=$("#sheet");if(!S.sheet){sh.hidden=true;return;}
@@ -465,7 +468,8 @@ function row(label,val,o={}){
 }
 function sheetDetail(pid){
   const p=S.people.find(x=>x.id===pid);if(!p)return[h("p",{class:"muted",text:"この社員は見つかりません。"})];
-  const D=derive(),s=seatOf(p,D),E=personExt(p,D);
+  const D=derive(),all=seatsOf(p,D),clicked=S.sheet&&S.sheet.seat&&all.find(x=>x.id===S.sheet.seat);
+  const s=clicked||seatOf(p,D)||all[0]||null,E=seatExt(s,p,D),others=all.filter(x=>x!==s);
   const mobiles=(p.mobile||"").split(" / ").filter(Boolean);
   return[h("div",{},p.yomi?h("div",{class:"kana",text:p.yomi}):null,h("h2",{text:p.name}),
       h("div",{},p.honbu?h("span",{class:"chip"+(p.honbu==="エネルギー事業本部"?" light":""),style:hbStyle(p.honbu),text:p.honbu}):null,
@@ -474,6 +478,7 @@ function sheetDetail(pid){
       ...(mobiles.length?mobiles.map(m=>row("携帯",m,{tel:true})):[row("携帯","")]),
       p.phone_direct?row("直通",p.phone_direct,{tel:true}):null,row("メール",p.email),
       row("座席",s?`${s.floor}・席 ${D.seatNo[s.id]}`:"未配置",{nocopy:true}),
+      ...others.map(o=>{const OE=seatExt(o,p,D);return row("ほかの席",`${o.floor}・席 ${D.seatNo[o.id]}`,{nocopy:true,note:OE.phone&&OE.ext?"内線 "+OE.ext:""});}),
       (()=>{const A=attOf(p);return A?row("在席",A.label,{nocopy:true,note:[A.note,`勤怠データ ${fmtTime(S.attAsOf)} 時点`].filter(Boolean).join("　")}):null;})()),
     (()=>{if(!S.schAsOf)return null;const evs=schToday(p),N=schNow(p);
       return h("div",{},h("div",{class:"lbl",text:"今日の予定（サイボウズ）"}),
@@ -489,28 +494,31 @@ function sheetSeat(id){
   const filter=h("input",{id:"se-filter",type:"search",placeholder:"氏名・ふりがなで絞り込み",autocomplete:"off"});
   const fill=()=>{const t=norm(filter.value);sel.replaceChildren(h("option",{value:"",selected:!cur},"（空席にする）"));
     const groups={};for(const p of people){if(t&&!norm(p.name).includes(t)&&!norm(p.yomi).includes(t))continue;(groups[p.honbu||"本部なし"]||=[]).push(p);}
-    for(const[g,ps]of Object.entries(groups))sel.append(h("optgroup",{label:g},ps.map(p=>{const ps2=seatOf(p,D);
-      return h("option",{value:p.id,selected:cur&&cur.id===p.id},`${p.name}${p.dept?"（"+p.dept+"）":""} — ${ps2?(ps2.id===id?"この席":`${ps2.floor} 席${D.seatNo[ps2.id]}`):"未配置"}`);})));};
+    for(const[g,ps]of Object.entries(groups))sel.append(h("optgroup",{label:g},ps.map(p=>{const ss=seatsOf(p,D);
+      return h("option",{value:p.id,selected:cur&&cur.id===p.id},`${p.name}${p.dept?"（"+p.dept+"）":""} — ${ss.length?ss.map(x=>x.id===id?"この席":`${x.floor} 席${D.seatNo[x.id]}`).join("・"):"未配置"}`);})));};
   filter.addEventListener("input",fill);fill();
+  const addChk=h("input",{type:"checkbox",id:"se-add"});
   const rotSel=h("select",{id:"se-rot"},[[0,"横"],[90,"縦"],[45,"斜め（右下がり）"],[-45,"斜め（右上がり）"]].map(([v,t])=>h("option",{value:v,selected:(s.rot||0)===v},t)));
   const phSel=h("select",{id:"se-phone"},h("option",{value:""},"（電話なし）"),
     S.phones.filter(x=>x.floor===s.floor).sort((a,b)=>extNum(a.ext)-extNum(b.ext)).map(ph=>{const us=phoneUsers(ph,D).filter(u=>!cur||u.id!==cur.id);
       return h("option",{value:ph.id,selected:s.phone_id===ph.id},`☎ ${ph.ext||"—"}　${ph.label||""}${us.length?(ph.label?"（":"")+us.map(u=>shortName(u.name)).join("・")+(ph.label?"）":"と共用"):""}`);}));
   const del=h("button",{type:"button",class:"btn danger",onclick:async()=>{
     if(!del.hasAttribute("data-armed")){del.setAttribute("data-armed","");del.textContent="もう一度押すと削除";return;}
-    closeSheet();await write(sb.from('seats').delete().eq('id',id),cur?`席を削除しました（${cur.name}さんは未配置になりました）`:"席を削除しました");}},"この席を削除");
+    closeSheet();await write(sb.from('seats').delete().eq('id',id),cur&&seatIdsOf(cur).length<2?`席を削除しました（${cur.name}さんは未配置になりました）`:"席を削除しました");}},"この席を削除");
   return[h("h2",{text:`${s.floor}・席 ${D.seatNo[id]}`}),
     h("div",{class:"field"},h("label",{for:"se-filter",class:"lbl"},"座る人"),filter),
     h("div",{class:"field"},h("label",{for:"se-person",class:"sr"},"社員を選択"),sel),
     h("p",{class:"hint",text:"ほかの席にいる人を選ぶと、その人がこの席へ移動します。いまこの席にいる人は未配置になります。"}),
+    h("label",{class:"chk",style:"display:flex;gap:8px;align-items:flex-start;font-size:13px"},addChk,
+      h("span",{},"兼務席として追加する（ほかの席はそのまま）",h("br"),h("span",{class:"hint",text:"社長の各フロアの作業席など、1人が複数の席を持つときに使います。"}))),
     h("div",{class:"field"},h("label",{for:"se-phone",class:"lbl"},"使う電話機（内線）"),phSel),
     h("div",{class:"field"},h("label",{for:"se-rot",class:"lbl"},"席の向き"),rotSel),
     h("div",{class:"actions"},h("button",{type:"button",class:"btn primary",onclick:async()=>{
-      const pid=sel.value,phid=phSel.value||null,rot=parseInt(rotSel.value)||0,pChanged=(cur?cur.id:"")!==pid,phChanged=(s.phone_id||null)!==phid,rChanged=(s.rot||0)!==rot;
+      const pid=sel.value,phid=phSel.value||null,rot=parseInt(rotSel.value)||0,add=addChk.checked,pChanged=(cur?cur.id:"")!==pid,phChanged=(s.phone_id||null)!==phid,rChanged=(s.rot||0)!==rot;
       if(!pChanged&&!phChanged&&!rChanged){closeSheet();return;}
       closeSheet();
       await write(async()=>{
-        if(pChanged){const r=await sb.rpc('seat_assign',{p_seat_id:id,p_employee_id:pid||null});if(r.error)return r;}
+        if(pChanged){const r=await sb.rpc('seat_assign',{p_seat_id:id,p_employee_id:pid||null,p_add:add});if(r.error)return r;}
         if(phChanged||rChanged){const u={updated_at:new Date().toISOString()};if(phChanged)u.phone_id=phid;if(rChanged)u.rot=rot;
           return await sb.from('seats').update(u).eq('id',id);}
         return{error:null};
@@ -725,7 +733,7 @@ function search(){
       h("span",{class:"sub",text:`${ph.floor}・${us.length?us.length+"名で共用":"代表・その他"}`}))));}
   for(const p of hits){const s=seatOf(p,D),E=personExt(p,D);
     res.append(h("li",{},h("button",{type:"button",onclick:()=>jump(p.id)},h("span",{text:p.name}),h("span",{class:"mono",text:E.ext?"内線 "+E.ext+(E.shared?" 共用":""):""}),
-      h("span",{class:"sub",text:`${p.honbu||""}${p.dept?" / "+p.dept:""}・${s?s.floor:"座席未登録"}`}))));}
+      h("span",{class:"sub",text:`${p.honbu||""}${p.dept?" / "+p.dept:""}・${s?[...new Set(seatsOf(p,D).map(x=>x.floor))].join("・"):"座席未登録"}`}))));}
   res.hidden=false;
 }
 function toPlan(){if(S.view!=="plan"){S.view="plan";$("#viewBtn").setAttribute("aria-pressed","false");$("#viewBtn").textContent="内線一覧";}}
