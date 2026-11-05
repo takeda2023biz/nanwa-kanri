@@ -147,7 +147,7 @@ dialog .note{font-size:11px;color:var(--text-muted);margin-bottom:12px;line-heig
     <div class="controls">
       <label class="muted" for="term">期</label>
       <select id="term"></select>
-      <button id="reload" title="最新のデータを読み込み直します">更新</button>
+      <button id="reload" title="kintone から同期してから、最新のデータを読み込み直します（30秒ほどかかります）">更新</button>
       <button id="xlsx" title="表示中の期の会議資料を Excel ファイルで保存します">Excel 出力</button>
       <button id="print" title="全シートを A3 横で印刷します">印刷</button>
       <button id="logout">閉じる</button>
@@ -231,7 +231,44 @@ async function reload(){
   try { DATA = await load(key); start(true); } catch (e) { alert('読み込めませんでした: ' + (e.message || e)); }
   $('reload').disabled = false;
 }
-$('reload').addEventListener('click', reload);
+// 「更新」: kintone → Supabase の同期を実行し、終わるのを待ってから読み直す
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function syncNote(text){ $('sync-info').textContent = text; }
+async function syncAndReload(){
+  const key = safeGet(KEY_STORE); if (!key) return location.reload();
+  const btn = $('reload'), label = btn.textContent;
+  btn.disabled = true; btn.textContent = '同期中…';
+  let note = '';
+  try {
+    const cur = await load(key);                        // 押した時点の最終同期を確かめる
+    const before = cur.last_sync ? cur.last_sync.at : null;
+    DATA = cur;
+    const { data: res, error } = await sb.rpc('request_kintone_sync');
+    if (error) throw error;
+    if (res && res.ok === false) {
+      note = '（' + (res.message || '同期を受け付けませんでした。') + ' 今ある写しを表示しています）';
+    } else {
+      // 同期の完了（最終同期の時刻が変わる）を最大 90 秒待つ
+      let done = false;
+      for (let i = 0; i < 30 && !done; i++) {
+        await sleep(3000);
+        syncNote('kintone から同期しています…（' + (i + 1) * 3 + '秒）');
+        const d = await load(key);
+        const ls = d.last_sync;
+        if (ls && ls.at !== before && ls.ok !== null) { DATA = d; done = true; }
+      }
+      if (!done) { DATA = await load(key); note = '（同期の完了を確認できませんでした。少し待ってからもう一度「更新」を押してください）'; }
+      else if (DATA.last_sync.ok === false) note = '（同期に失敗しました。今ある写しを表示しています）';
+    }
+    start(true);
+  } catch (e) {
+    try { DATA = await load(key); start(true); } catch (e2) {}
+    note = '（同期できませんでした: ' + (e.message || e) + '）';
+  }
+  if (note) $('sync-info').textContent += ' ' + note;
+  btn.textContent = label; btn.disabled = false;
+}
+$('reload').addEventListener('click', syncAndReload);
 $('print').addEventListener('click', () => window.print());
 $('term').addEventListener('change', e => { termNo = +e.target.value; render(); });
 
