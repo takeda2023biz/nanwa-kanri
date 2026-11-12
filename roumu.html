@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>労務費現場振替表</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+:root{
+  --surface-0:#f5f5f3; --surface-1:#ffffff; --border:#e6e5df; --grid:#eeede8;
+  --text-primary:#1a1a1a; --text-secondary:#52514e; --text-muted:#8a8984;
+  --accent:#2a78d6; --accent-soft:#e8f1fc; --accent-bg:#f9f9f7;
+  --good:#1a7f37; --warn:#9a6700; --warn-bg:#fff8e1; --bad:#b42318; --bad-bg:#fdecea; --manual:#fff2cc;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    --surface-0:#121211; --surface-1:#1a1a19; --border:#2e2e2b; --grid:#262624;
+    --text-primary:#f0efec; --text-secondary:#c3c2b7; --text-muted:#8f8e86;
+    --accent:#3987e5; --accent-soft:#1c3a5e; --accent-bg:#20201e;
+    --good:#4ac26b; --warn:#d4a72c; --warn-bg:#2d2610; --bad:#f47067; --bad-bg:#3a1d1b; --manual:#3a3315;
+  }
+}
+:root[data-theme="dark"]{
+  --surface-0:#121211; --surface-1:#1a1a19; --border:#2e2e2b; --grid:#262624;
+  --text-primary:#f0efec; --text-secondary:#c3c2b7; --text-muted:#8f8e86;
+  --accent:#3987e5; --accent-soft:#1c3a5e; --accent-bg:#20201e;
+  --good:#4ac26b; --warn:#d4a72c; --warn-bg:#2d2610; --bad:#f47067; --bad-bg:#3a1d1b; --manual:#3a3315;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;font-size:14px;background:var(--surface-0);color:var(--text-primary);min-height:100vh;}
+.topbar{background:var(--surface-1);border-bottom:1px solid var(--border);padding:8px 24px;display:flex;align-items:center;justify-content:space-between;min-height:56px;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:10;}
+.title{font-size:16px;font-weight:700;}
+.sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+select,input,button{font-family:inherit;font-size:13px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--surface-1);color:var(--text-primary);padding:0 10px;}
+input[type=checkbox]{height:auto;}
+button{cursor:pointer;font-weight:500;white-space:nowrap;}
+button:disabled{opacity:.45;cursor:default;}
+button.primary{background:var(--text-primary);color:var(--surface-1);border-color:var(--text-primary);}
+button.small{height:28px;font-size:12px;padding:0 8px;}
+button.icon{height:26px;width:26px;padding:0;font-size:12px;}
+.chip{font-size:12px;color:var(--text-secondary);background:var(--accent-bg);border:1px solid var(--border);border-radius:999px;padding:5px 10px;}
+.main{padding:20px 24px 96px;max-width:1400px;margin:0 auto;}
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px;}
+.card h2{font-size:14px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.card .note{font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.7;}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+.bar .grow{flex:1;}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px;}
+.tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px;}
+.tile .k{font-size:11px;color:var(--text-secondary);}
+.tile .v{font-size:20px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;}
+.tile .u{font-size:12px;font-weight:500;color:var(--text-secondary);margin-left:2px;}
+.tile .s{font-size:11px;color:var(--text-muted);margin-top:4px;}
+.tile.ok .v{color:var(--good);} .tile.ng .v{color:var(--bad);}
+.tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:8px;max-height:70vh;}
+table{border-collapse:collapse;width:100%;font-size:12.5px;}
+th,td{padding:6px 8px;border-bottom:1px solid var(--grid);text-align:left;white-space:nowrap;}
+th{position:sticky;top:0;background:var(--accent-bg);color:var(--text-secondary);font-weight:600;font-size:11.5px;z-index:1;}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
+tfoot td{font-weight:700;background:var(--accent-bg);position:sticky;bottom:0;}
+td input{height:28px;font-size:12.5px;}
+td input.money{width:110px;text-align:right;font-variant-numeric:tabular-nums;}
+td input.days{width:70px;text-align:right;}
+td input.memo{width:160px;}
+td select{height:28px;font-size:12.5px;max-width:300px;}
+.muted{color:var(--text-muted);}
+.warn{color:var(--warn);} .bad{color:var(--bad);} .good{color:var(--good);}
+td.manual{background:var(--manual);}
+tr.nocode td{background:var(--bad-bg);}
+.alerts{list-style:none;}
+.alerts li{font-size:12.5px;padding:7px 10px;border-radius:8px;margin-bottom:6px;line-height:1.6;}
+.alerts li.w{background:var(--warn-bg);} .alerts li.e{background:var(--bad-bg);}
+.alerts li.i{background:var(--accent-bg);}
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.seg button{border:0;border-radius:0;height:30px;font-size:12px;}
+.seg button.on{background:var(--text-primary);color:var(--surface-1);}
+.savebar{position:fixed;left:0;right:0;bottom:0;background:var(--surface-1);border-top:1px solid var(--border);padding:10px 24px;display:none;align-items:center;gap:10px;justify-content:flex-end;z-index:20;box-shadow:0 -4px 16px rgba(0,0,0,.06);}
+.savebar.show{display:flex;}
+.savebar .msg{flex:1;font-size:13px;color:var(--warn);font-weight:600;}
+/* ログイン */
+.gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;}
+.gate .box{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:28px 26px;width:100%;max-width:380px;}
+.gate h1{font-size:17px;margin-bottom:6px;}
+.gate p{font-size:12px;color:var(--text-muted);line-height:1.7;margin-bottom:14px;}
+.gate label{display:block;font-size:12px;color:var(--text-secondary);margin:10px 0 4px;}
+.gate input{width:100%;}
+.gate button{width:100%;margin-top:16px;}
+.gate .err{color:var(--bad);font-size:12px;margin-top:10px;min-height:1em;line-height:1.6;}
+.hidden{display:none!important;}
+dialog{border:1px solid var(--border);border-radius:12px;background:var(--surface-1);color:var(--text-primary);padding:18px 20px;max-width:min(760px,94vw);width:100%;}
+dialog::backdrop{background:rgba(0,0,0,.35);}
+dialog h3{font-size:15px;margin-bottom:8px;}
+dialog .acts{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;}
+dialog .body{font-size:12.5px;line-height:1.7;max-height:60vh;overflow:auto;}
+.veil{position:fixed;inset:0;background:var(--surface-0);display:flex;align-items:center;justify-content:center;z-index:40;flex-direction:column;gap:12px;font-size:13px;color:var(--text-secondary);}
+@media(max-width:700px){.topbar{position:static;}.topbar,.main{padding-left:16px;padding-right:16px;}.savebar{padding:10px 16px;}}
+@media print{.topbar,.savebar,button{display:none!important;}}
+</style>
+</head>
+<body>
+
+<!-- ログイン -->
+<div class="gate hidden" id="gate">
+  <form class="box" id="login-form">
+    <h1>労務費現場振替表</h1>
+    <p>給与情報を扱うため、管理者・経理担当者だけが使えます。<br>管理本部ポータルと同じメールアドレス・パスワードでログインしてください。</p>
+    <label for="lg-email">メールアドレス</label>
+    <input id="lg-email" type="email" autocomplete="username" required>
+    <label for="lg-pw">パスワード</label>
+    <input id="lg-pw" type="password" autocomplete="current-password" required>
+    <button class="primary" type="submit">ログイン</button>
+    <div class="err" id="lg-err"></div>
+  </form>
+</div>
+
+<!-- 権限なし -->
+<div class="gate hidden" id="denied">
+  <div class="box">
+    <h1>このページを使う権限がありません</h1>
+    <p id="denied-msg">労務費現場振替表は、管理者・経理担当者として登録された人だけが使えます。必要な場合はシステム戦略室（武田）へご連絡ください。</p>
+    <button type="button" id="denied-logout">別のアカウントでログイン</button>
+  </div>
+</div>
+
+<!-- 本体 -->
+<div id="app" class="hidden">
+  <div class="topbar">
+    <div>
+      <div class="title">労務費現場振替表</div>
+      <div class="sub">予定（業務日報）の日数で 月給与・法定福利費 を現場コードへ振り分けます ／ 給与情報のため管理者・経理のみ</div>
+    </div>
+    <div class="controls">
+      <button type="button" id="prev-m" title="前の月">◀</button>
+      <input type="month" id="ym" style="width:150px">
+      <button type="button" id="next-m" title="次の月">▶</button>
+      <button type="button" id="reload">読み直す</button>
+      <span class="chip" id="me"></span>
+      <button type="button" id="logout">ログアウト</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="tiles" id="tiles"></div>
+
+    <div class="card" id="alerts-card">
+      <h2>確認事項</h2>
+      <ul class="alerts" id="alerts"></ul>
+    </div>
+
+    <div class="card">
+      <h2>① 月給与・法定福利費 <span class="muted" style="font-weight:400;font-size:12px" id="saved-info"></span></h2>
+      <div class="note">社員ごとの その月の 月給与・法定福利費 を入れて「保存」します。日数は予定入力（業務日報）から自動で数えます（午前・午後 各0.5日。現場→現場コード、本社→489000 諸工事。休み・有給は含めない）。<br>
+        並び順は Excel 出力の列の順になります（↑↓で変更）。この月に関係のない社員は × で外せます。</div>
+      <div class="bar">
+        <button type="button" class="small" id="copy-prev">前月の金額を入れる</button>
+        <button type="button" class="small" id="import-btn">Excel（今の振替表）から読み込む</button>
+        <input type="file" id="import-file" accept=".xlsx,.xlsm" class="hidden">
+        <span class="grow"></span>
+        <select id="add-emp" style="max-width:260px"><option value="">社員を追加…</option></select>
+        <button type="button" class="small" id="add-emp-btn">追加</button>
+      </div>
+      <div class="tbl-wrap"><table id="pay-tbl"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>② 手入力の日数</h2>
+      <div class="note">予定入力をしていない社員（例: 宮崎さん・堀口さん）の 現場コード別の日数 を入れます。予定がある社員にも足せますが、その場合は予定の日数に<b>加算</b>されます（二重にならないよう注意）。</div>
+      <div class="bar">
+        <button type="button" class="small" id="man-add">行を追加</button>
+        <button type="button" class="small" id="man-copy">前月の手入力をコピー</button>
+      </div>
+      <div class="tbl-wrap"><table id="man-tbl"></table></div>
+      <datalist id="code-list"></datalist>
+    </div>
+
+    <div class="card">
+      <h2>③ 振替結果
+        <span class="seg" id="view-seg"><button type="button" data-v="code" class="on">現場コード別</button><button type="button" data-v="matrix">社員別の明細（賃金）</button><button type="button" data-v="matrix-w">社員別の明細（法定福利費）</button></span>
+      </h2>
+      <div class="note">日給 = 月給与 ÷ その社員の日数合計、金額 = 日給 × 現場コードの日数（法定福利費も同じ）。黄色は手入力の日数。画面の値（未保存を含む）で計算しています。</div>
+      <div class="tbl-wrap"><table id="res-tbl"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>④ Excel 出力</h2>
+      <div class="note">今の「労務費現場振替表R8.xlsx」の月シート（例: 10賃金）と同じ形で出力します（月給与・法定福利費、賃金表・法定福利費表、数式つき、検算欄つき）。現場名は値で入れます（外部ブックへのリンクなし）。<br>保存済みの内容で出力します。<b>出力したファイルには給与が含まれます。取扱いにご注意ください。</b></div>
+      <div class="bar">
+        <label class="muted" style="font-size:12px">出力する月</label>
+        <input type="month" id="ex-from" style="width:150px"> 〜 <input type="month" id="ex-to" style="width:150px">
+        <button type="button" class="primary" id="export-btn">Excel を出力</button>
+        <span class="muted" style="font-size:12px" id="export-msg"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="savebar" id="savebar">
+    <span class="msg" id="save-msg">未保存の変更があります</span>
+    <button type="button" id="discard">元に戻す</button>
+    <button type="button" class="primary" id="save">保存</button>
+  </div>
+</div>
+
+<div class="veil hidden" id="veil">
+  <div>しばらく操作がなかったため、給与情報を隠しています。</div>
+  <button type="button" class="primary" id="veil-btn">表示する</button>
+</div>
+
+<dialog id="dlg">
+  <h3 id="dlg-title"></h3>
+  <div class="body" id="dlg-body"></div>
+  <div class="acts" id="dlg-acts"></div>
+</dialog>
+
+<script>
+const SUPABASE_URL = 'https://cicxvcjnvkynhukbnrns.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpY3h2Y2pudmt5bmh1a2Jucm5zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNjI4ODYsImV4cCI6MjA5MTYzODg4Nn0.MQs-YYzLJ-gEgvgY7vyw2NGwzqc76TLWIq08GDK8sMQ';
+// ログイン状態は管理本部ポータル（同じサイト）と共有されます
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { db: { schema: 'kensetsu' } });
+const $ = id => document.getElementById(id);
+const IDLE_MS = 30 * 60 * 1000;   // 30分操作がなければ給与を隠す
+const HQ_CODE = '489000', HQ_NAME = '諸工事';
+const NOCODE = '（現場コードなし）';
+
+let ME = null, DATA = null, ROWS = [], MAN = [], DIRTY = false, VIEW = 'code', HOLIDAYS = null, CALC = null;
+
+// ---------- 小物 ----------
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const num = v => { if (v == null || v === '') return null; const x = Number(String(v).replace(/[,，\s円]/g, '')); return isFinite(x) ? x : null; };
+const yen = v => v == null ? '<span class="muted">—</span>' : Math.round(v).toLocaleString('ja-JP');
+const dd = v => v == null || v === 0 ? '' : (Math.round(v * 10) / 10).toLocaleString('ja-JP', { minimumFractionDigits: 1 });
+const normName = s => String(s ?? '').replace(/[\s　]/g, '');
+function ymAdd(ym, k){ const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + k, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function thisYm(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function reiwa(ym){ const [y, m] = ym.split('-').map(Number); return { r: y - 2018, m }; }
+function ymLabel(ym){ const { r, m } = reiwa(ym); return `R${r}.${m}`; }
+function siteName(code){
+  if (code === HQ_CODE) return HQ_NAME;
+  if (code === NOCODE) return [...new Set((DATA?.nocode || []).map(x => x.site || '（現場不明）'))].join('・') || '';
+  const c = (DATA?.codes || []).find(x => x.code === code); return c ? c.site : '';
+}
+function codeSort(a, b){ if (a === NOCODE) return 1; if (b === NOCODE) return -1; if (a === HQ_CODE) return 1; if (b === HQ_CODE) return -1; return a.localeCompare(b); }
+function setDirty(v){ DIRTY = v; $('savebar').classList.toggle('show', v); }
+async function rpc(name, args){
+  const { data, error } = await sb.rpc(name, args || {});
+  if (error) { const e = new Error(error.message); e.code = error.code; throw e; }
+  return data;
+}
+function dialog(title, html, buttons){
+  return new Promise(res => {
+    $('dlg-title').textContent = title; $('dlg-body').innerHTML = html;
+    $('dlg-acts').innerHTML = '';
+    buttons.forEach(([label, val, primary]) => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (primary) b.className = 'primary';
+      b.onclick = () => { res(val); $('dlg').close(); }; $('dlg-acts').appendChild(b);
+    });
+    $('dlg').oncancel = () => res(null);   // Esc で閉じたとき（close イベントは前のダイアログのものが遅れて届くことがあるので使わない）
+    $('dlg').showModal();
+  });
+}
+const alertMsg = (title, html) => dialog(title, html, [['OK', true, true]]);
+
+// ---------- ログイン ----------
+function show(which){ ['gate', 'denied', 'app'].forEach(id => $(id).classList.toggle('hidden', id !== which)); }
+async function start(){
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { show('gate'); return; }
+  let me;
+  try { me = await rpc('labor_me'); }
+  catch (e) { show('gate'); $('lg-err').textContent = '確認に失敗しました: ' + e.message; return; }
+  if (!me || !me.allowed) {
+    $('denied-msg').textContent = (me && me.name ? me.name + ' さんは、' : 'このアカウントは、') + '労務費現場振替表の許可者に登録されていません。必要な場合はシステム戦略室（武田）へご連絡ください。';
+    show('denied'); return;
+  }
+  ME = me;
+  $('me').textContent = me.name + '（' + me.role + '）';
+  show('app');
+  const ym = new URLSearchParams(location.search).get('ym') || ymAdd(thisYm(), -1);
+  $('ym').value = ym; $('ex-from').value = ym; $('ex-to').value = ym;
+  await load(ym);
+}
+$('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('lg-err').textContent = 'ログインしています…';
+  const { error } = await sb.auth.signInWithPassword({ email: $('lg-email').value.trim(), password: $('lg-pw').value });
+  if (error) { $('lg-err').textContent = 'ログインできませんでした（メールアドレスかパスワードが違います）'; return; }
+  $('lg-pw').value = ''; $('lg-err').textContent = '';
+  await start();
+});
+async function logout(){
+  if (DIRTY && !confirm('保存していない変更があります。破棄してログアウトしますか？')) return;
+  await sb.auth.signOut(); DATA = null; ROWS = []; MAN = []; setDirty(false);
+  $('pay-tbl').innerHTML = $('man-tbl').innerHTML = $('res-tbl').innerHTML = '';
+  show('gate');
+}
+$('logout').onclick = logout; $('denied-logout').onclick = async () => { await sb.auth.signOut(); show('gate'); };
+
+// ---------- 読み込み ----------
+async function loadHolidays(){
+  if (HOLIDAYS) return HOLIDAYS;
+  try { const r = await fetch('https://holidays-jp.github.io/api/v1/date.json'); HOLIDAYS = new Set(Object.keys(await r.json())); }
+  catch (e) { HOLIDAYS = new Set(); }
+  return HOLIDAYS;
+}
+async function load(ym){
+  $('tiles').innerHTML = '<div class="muted">読み込んでいます…</div>';
+  try {
+    const [d] = await Promise.all([rpc('labor_sheet', { p_ym: ym + '-01' }), loadHolidays()]);
+    DATA = d;
+  } catch (e) {
+    if (e.code === '42501') { show('denied'); return; }
+    $('tiles').innerHTML = `<div class="bad">読み込みに失敗しました: ${esc(e.message)}</div>`; return;
+  }
+  ROWS = DATA.people.map(p => ({ id: p.id, name: p.name, honbu: p.honbu, dept: p.dept, retired: p.retired,
+    salary: p.salary, welfare: p.welfare, notes: p.notes || '', saved: p.saved,
+    prev_salary: p.prev_salary, prev_welfare: p.prev_welfare, updated_at: p.updated_at, updated_by: p.updated_by }));
+  // 前月に給与を登録した社員も一覧に出す（予定のない宮崎さん・堀口さん等のため）。
+  // 今月 給与も日数もない社員は、保存時に対象から外れる
+  MAN = DATA.manual.map(m => ({ emp: m.emp, code: m.code, days: m.days, notes: m.notes || '' }));
+  const sv = DATA.months.find(m => m.ym === ym);
+  $('saved-info').textContent = sv ? `保存済み ${sv.people}名・最終更新 ${new Date(sv.updated_at).toLocaleString('ja-JP')}` : '未保存（この月はまだ給与が登録されていません）';
+  $('code-list').innerHTML = [HQ_CODE + ' ' + HQ_NAME].concat(DATA.codes.map(c => c.code + ' ' + c.site + (c.status === '有効' ? '' : '（無効）')))
+    .map(s => `<option value="${esc(s.split(' ')[0])}">${esc(s)}</option>`).join('');
+  setDirty(false);
+  renderAll();
+}
+async function changeMonth(ym){
+  if (!ym) return;
+  if (DIRTY && !confirm('保存していない変更があります。破棄して月を切り替えますか？')) { $('ym').value = DATA.ym; return; }
+  $('ym').value = ym;
+  history.replaceState(null, '', '?ym=' + ym);
+  await load(ym);
+}
+$('ym').addEventListener('change', () => changeMonth($('ym').value));
+$('prev-m').onclick = () => changeMonth(ymAdd($('ym').value, -1));
+$('next-m').onclick = () => changeMonth(ymAdd($('ym').value, 1));
+$('reload').onclick = () => changeMonth($('ym').value);
+
+// ---------- 計算 ----------
+function compute(rows, man, data){
+  const days = {};   // emp -> code -> {days, manual}
+  const add = (e, c, v, m) => { const x = (days[e] ||= {}); const y = (x[c] ||= { days: 0, manual: 0 }); y.days += v; if (m) y.manual += v; };
+  data.days.forEach(d => add(d.emp, d.code, Number(d.days), false));
+  man.forEach(m => { const v = num(m.days); if (m.emp && m.code && v) add(m.emp, m.code, v, true); });
+  const people = rows.map(r => {
+    const dm = days[r.id] || {};
+    const total = Object.values(dm).reduce((a, x) => a + x.days, 0);
+    const sal = num(r.salary), wel = num(r.welfare);
+    return { ...r, dm, total, sal, wel, dsal: sal != null && total > 0 ? sal / total : null, dwel: wel != null && total > 0 ? wel / total : null };
+  });
+  const codes = [...new Set(people.flatMap(p => Object.keys(p.dm)))].sort(codeSort);
+  const byCode = codes.map(c => {
+    let d = 0, s = 0, w = 0; const who = [];
+    people.forEach(p => { const x = p.dm[c]; if (!x) return; d += x.days; s += (p.dsal || 0) * x.days; w += (p.dwel || 0) * x.days; who.push(p.name); });
+    return { code: c, site: siteName(c), days: d, sal: s, wel: w, who };
+  });
+  const tot = { sal: people.reduce((a, p) => a + (p.sal || 0), 0), wel: people.reduce((a, p) => a + (p.wel || 0), 0),
+                asal: byCode.reduce((a, x) => a + x.sal, 0), awel: byCode.reduce((a, x) => a + x.wel, 0), days: byCode.reduce((a, x) => a + x.days, 0) };
+  const orphan = Object.keys(days).filter(e => !rows.some(r => r.id === e));
+  return { people, codes, byCode, tot, orphan, days };
+}
+function missingSlots(empId){
+  // 平日（祝日を除く）で 午前・午後 が埋まっていないコマ数。今月なら昨日まで
+  const ym = DATA.ym; const [y, m] = ym.split('-').map(Number);
+  const has = DATA.slots.filter(s => s.emp === empId);
+  if (!has.length) return null;    // 予定を使っていない社員は対象外
+  const cnt = {}; has.forEach(s => cnt[s.d] = s.n);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  let miss = 0;
+  for (let d = new Date(y, m - 1, 1); d.getMonth() === m - 1; d.setDate(d.getDate() + 1)) {
+    if (d >= today) break;
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if (d.getDay() === 0 || d.getDay() === 6 || HOLIDAYS.has(key)) continue;
+    miss += 2 - Math.min(2, cnt[key] || 0);
+  }
+  return miss;
+}
+
+// ---------- 描画 ----------
+function renderAll(){ CALC = compute(ROWS, MAN, DATA); renderTiles(); renderAlerts(); renderPay(); renderMan(); renderRes(); renderAddEmp(); }
+function renderTiles(){
+  const t = CALC.tot, diffS = t.sal - t.asal, diffW = t.wel - t.awel;
+  const ok = Math.abs(diffS) < 0.5 && Math.abs(diffW) < 0.5;
+  $('tiles').innerHTML = `
+    <div class="tile"><div class="k">${esc(ymLabel(DATA.ym))} 月給与 合計</div><div class="v">${yen(t.sal)}<span class="u">円</span></div><div class="s">${CALC.people.length} 名</div></div>
+    <div class="tile"><div class="k">法定福利費 合計</div><div class="v">${yen(t.wel)}<span class="u">円</span></div></div>
+    <div class="tile"><div class="k">振替の日数 合計</div><div class="v">${dd(t.days) || 0}<span class="u">日</span></div><div class="s">${CALC.codes.length} 現場コード</div></div>
+    <div class="tile ${ok ? 'ok' : 'ng'}"><div class="k">検算（給与 − 振替合計）</div><div class="v">${ok ? '一致' : yen(diffS) + ' / ' + yen(diffW)}</div><div class="s">賃金・法定福利費とも 0 なら一致</div></div>`;
+}
+function renderAlerts(){
+  const li = [];
+  CALC.people.forEach(p => {
+    if (p.total === 0 && (p.sal || p.wel)) li.push(['e', `<b>${esc(p.name)}</b>：日数が 0 のため振り分けられません（予定入力か ② 手入力の日数を入れてください）`]);
+    if (p.total > 0 && p.sal == null) li.push(['w', `<b>${esc(p.name)}</b>：月給与が未入力です（日数 ${dd(p.total)} 日）`]);
+    const ms = missingSlots(p.id);
+    if (ms) li.push(['w', `<b>${esc(p.name)}</b>：平日の予定が ${ms} コマ（${dd(ms / 2)} 日分）未入力です。日数が足りない可能性があります`]);
+    if (p.retired) li.push(['i', `<b>${esc(p.name)}</b>：退職済みの社員です`]);
+  });
+  CALC.orphan.forEach(e => { const n = (DATA.employees.find(x => x.id === e) || {}).name || e;
+    li.push(['e', `<b>${esc(n)}</b>：日数がありますが ① の一覧にいません（追加してください）`]); });
+  (DATA.nocode || []).forEach(x => { const n = (DATA.employees.find(e => e.id === x.emp) || {}).name || '';
+    li.push(['e', `<b>${esc(n)}</b>：現場「${esc(x.site || '不明')}」に現場コードがありません（${dd(x.days)} 日）。現場マスタでコードを登録してください`]); });
+  MAN.forEach(m => { if (m.code && !/^\d{6}$/.test(m.code)) li.push(['e', `② 手入力：現場コード「${esc(m.code)}」は6桁の数字にしてください`]);
+    else if (m.code && m.code !== HQ_CODE && !DATA.codes.some(c => c.code === m.code)) li.push(['w', `② 手入力：現場コード「${esc(m.code)}」は現場マスタにありません`]); });
+  if (!li.length) li.push(['i', '確認事項はありません。']);
+  $('alerts').innerHTML = li.map(([c, h]) => `<li class="${c}">${h}</li>`).join('');
+}
+function renderPay(){
+  const rows = CALC.people;
+  $('pay-tbl').innerHTML = `<thead><tr><th>順</th><th>氏名</th><th>部署</th><th class="num">月給与</th><th class="num">法定福利費</th>
+    <th class="num">前月 給与</th><th class="num">前月 法定福利費</th><th class="num">日数</th><th class="num">うち手入力</th><th class="num">日給</th><th class="num">平日未入力</th><th>メモ</th><th></th></tr></thead>
+    <tbody>${rows.map((p, i) => {
+      const manual = Object.values(p.dm).reduce((a, x) => a + x.manual, 0); const ms = missingSlots(p.id);
+      return `<tr data-i="${i}">
+      <td><button type="button" class="icon" data-up="${i}" ${i ? '' : 'disabled'}>↑</button> <button type="button" class="icon" data-down="${i}" ${i < rows.length - 1 ? '' : 'disabled'}>↓</button></td>
+      <td>${esc(p.name)}${p.retired ? ' <span class="muted">（退職）</span>' : ''}</td><td class="muted">${esc(p.dept || p.honbu || '')}</td>
+      <td class="num"><input class="money" data-f="salary" data-i="${i}" inputmode="numeric" value="${p.sal == null ? '' : p.sal.toLocaleString('ja-JP')}"></td>
+      <td class="num"><input class="money" data-f="welfare" data-i="${i}" inputmode="numeric" value="${p.wel == null ? '' : p.wel.toLocaleString('ja-JP')}"></td>
+      <td class="num muted">${yen(p.prev_salary)}</td><td class="num muted">${yen(p.prev_welfare)}</td>
+      <td class="num ${p.total ? '' : 'bad'}">${dd(p.total) || '0'}</td><td class="num ${manual ? 'manual' : ''}">${dd(manual)}</td>
+      <td class="num" data-rate="${i}">${p.dsal == null ? '<span class="muted">—</span>' : yen(p.dsal)}</td>
+      <td class="num ${ms ? 'warn' : 'muted'}">${ms == null ? '—' : ms ? ms + 'コマ' : '0'}</td>
+      <td><input class="memo" data-f="notes" data-i="${i}" value="${esc(p.notes)}"></td>
+      <td><button type="button" class="icon" data-del="${i}" title="この月の対象から外す">×</button></td></tr>`; }).join('')}</tbody>
+    <tfoot><tr><td></td><td>合計</td><td></td><td class="num">${yen(CALC.tot.sal)}</td><td class="num">${yen(CALC.tot.wel)}</td>
+      <td class="num muted">${yen(rows.reduce((a, p) => a + (p.prev_salary || 0), 0))}</td><td class="num muted">${yen(rows.reduce((a, p) => a + (p.prev_welfare || 0), 0))}</td>
+      <td class="num">${dd(rows.reduce((a, p) => a + p.total, 0))}</td><td colspan="5"></td></tr></tfoot>`;
+}
+$('pay-tbl').addEventListener('input', e => {
+  const i = e.target.dataset.i, f = e.target.dataset.f; if (i == null || !f) return;
+  ROWS[i][f] = f === 'notes' ? e.target.value : num(e.target.value);
+  setDirty(true);
+  CALC = compute(ROWS, MAN, DATA); renderTiles(); renderRes();
+});
+$('pay-tbl').addEventListener('change', e => {
+  const i = e.target.dataset.i, f = e.target.dataset.f; if (i == null || !f || f === 'notes') return;
+  const v = num(e.target.value); e.target.value = v == null ? '' : v.toLocaleString('ja-JP');
+  const p = CALC.people[i], cell = $('pay-tbl').querySelector(`[data-rate="${i}"]`);
+  if (cell) cell.innerHTML = p.dsal == null ? '<span class="muted">—</span>' : yen(p.dsal);
+  const ft = $('pay-tbl').querySelector('tfoot tr'); if (ft) { ft.children[3].textContent = Math.round(CALC.tot.sal).toLocaleString('ja-JP'); ft.children[4].textContent = Math.round(CALC.tot.wel).toLocaleString('ja-JP'); }
+  renderAlerts();
+});
+$('pay-tbl').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.up) { const i = +b.dataset.up; [ROWS[i - 1], ROWS[i]] = [ROWS[i], ROWS[i - 1]]; }
+  else if (b.dataset.down) { const i = +b.dataset.down; [ROWS[i + 1], ROWS[i]] = [ROWS[i], ROWS[i + 1]]; }
+  else if (b.dataset.del) { const i = +b.dataset.del; const p = CALC.people[i];
+    if (p.total > 0 && !confirm(`${p.name} さんには ${dd(p.total)} 日の日数があります。外すと振り分けされません。外しますか？`)) return;
+    ROWS.splice(i, 1); }
+  else return;
+  setDirty(true); renderAll();
+});
+function renderAddEmp(){
+  const inRows = new Set(ROWS.map(r => r.id));
+  const groups = {};
+  DATA.employees.filter(e => !inRows.has(e.id)).forEach(e => (groups[e.honbu || '（本部なし）'] ||= []).push(e));
+  const order = Object.keys(groups).sort((a, b) => (b === '建設事業本部') - (a === '建設事業本部') || a.localeCompare(b));
+  $('add-emp').innerHTML = '<option value="">社員を追加…</option>' + order.map(g => `<optgroup label="${esc(g)}">${groups[g].map(e => `<option value="${e.id}">${esc(e.name)}${e.dept ? '（' + esc(e.dept) + '）' : ''}</option>`).join('')}</optgroup>`).join('');
+}
+$('add-emp-btn').onclick = () => {
+  const id = $('add-emp').value; if (!id) return;
+  const e = DATA.employees.find(x => x.id === id);
+  const prev = DATA.people.find(p => p.id === id) || {};
+  ROWS.push({ id, name: e.name, honbu: e.honbu, dept: e.dept, salary: null, welfare: null, notes: '', saved: false, prev_salary: prev.prev_salary, prev_welfare: prev.prev_welfare });
+  setDirty(true); renderAll();
+};
+$('copy-prev').onclick = () => {
+  let n = 0;
+  ROWS.forEach(r => { if (r.salary == null && r.prev_salary != null) { r.salary = r.prev_salary; n++; } if (r.welfare == null && r.prev_welfare != null) { r.welfare = r.prev_welfare; n++; } });
+  if (!n) { alertMsg('前月の金額を入れる', '空欄の社員で前月の金額がある人はいませんでした（入力済みの金額は変えません）。'); return; }
+  setDirty(true); renderAll();
+};
+
+function renderMan(){
+  const opts = sel => '<option value="">（社員）</option>' + ROWS.map(r => `<option value="${r.id}" ${r.id === sel ? 'selected' : ''}>${esc(r.name)}</option>`).join('')
+    + (sel && !ROWS.some(r => r.id === sel) ? `<option value="${sel}" selected>${esc((DATA.employees.find(e => e.id === sel) || {}).name || '?')}（①に未追加）</option>` : '');
+  $('man-tbl').innerHTML = `<thead><tr><th>社員</th><th>現場コード</th><th>現場名</th><th class="num">日数</th><th>メモ</th><th></th></tr></thead><tbody>${
+    MAN.length ? MAN.map((m, i) => `<tr><td><select data-m="emp" data-i="${i}">${opts(m.emp)}</select></td>
+      <td><input data-m="code" data-i="${i}" list="code-list" value="${esc(m.code)}" style="width:110px" inputmode="numeric"></td>
+      <td class="muted">${esc(siteName(m.code))}</td>
+      <td class="num"><input class="days" data-m="days" data-i="${i}" value="${m.days ?? ''}" inputmode="decimal"></td>
+      <td><input class="memo" data-m="notes" data-i="${i}" value="${esc(m.notes)}"></td>
+      <td><button type="button" class="icon" data-mdel="${i}">×</button></td></tr>`).join('')
+    : '<tr><td colspan="6" class="muted">手入力の日数はありません</td></tr>'}</tbody>`;
+}
+$('man-tbl').addEventListener('change', e => {
+  const i = e.target.dataset.i, f = e.target.dataset.m; if (i == null || !f) return;
+  let v = e.target.value.trim();
+  if (f === 'days') { const x = num(v); v = x == null ? null : Math.round(x * 2) / 2; }
+  if (f === 'code') v = v.replace(/\D/g, '');
+  MAN[i][f] = v; setDirty(true);
+  if (f === 'code') e.target.closest('tr').children[2].textContent = siteName(v);
+  CALC = compute(ROWS, MAN, DATA); renderTiles(); renderAlerts(); renderPay(); renderRes();
+});
+$('man-tbl').addEventListener('click', e => { const b = e.target.closest('button[data-mdel]'); if (!b) return; MAN.splice(+b.dataset.mdel, 1); setDirty(true); renderAll(); });
+$('man-add').onclick = () => { MAN.push({ emp: '', code: '', days: null, notes: '' }); setDirty(true); renderMan(); };
+$('man-copy').onclick = async () => {
+  const pm = DATA.prev_manual || [];
+  if (!pm.length) { alertMsg('前月の手入力をコピー', '前月の手入力の日数はありません。'); return; }
+  if (MAN.length && !await dialog('前月の手入力をコピー', '今の手入力の行を、前月の内容で置き換えます。よろしいですか？', [['やめる', false], ['置き換える', true, true]])) return;
+  MAN = pm.map(m => ({ emp: m.emp, code: m.code, days: m.days, notes: m.notes || '' }));
+  pm.forEach(m => { if (!ROWS.some(r => r.id === m.emp)) { const e = DATA.employees.find(x => x.id === m.emp); if (e) ROWS.push({ id: e.id, name: e.name, honbu: e.honbu, dept: e.dept, salary: null, welfare: null, notes: '' }); } });
+  setDirty(true); renderAll();
+};
+
+function renderRes(){
+  if (VIEW === 'code') {
+    $('res-tbl').innerHTML = `<thead><tr><th>現場コード</th><th>現場名</th><th class="num">日数</th><th class="num">労務費（賃金）</th><th class="num">法定福利費</th><th class="num">合計</th><th>担当</th></tr></thead>
+      <tbody>${CALC.byCode.map(r => `<tr class="${r.code === NOCODE ? 'nocode' : ''}"><td>${esc(r.code)}</td><td>${esc(r.site)}</td><td class="num">${dd(r.days)}</td>
+        <td class="num">${yen(r.sal)}</td><td class="num">${yen(r.wel)}</td><td class="num">${yen(r.sal + r.wel)}</td><td class="muted">${esc(r.who.join('、'))}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>合計</td><td></td><td class="num">${dd(CALC.tot.days)}</td><td class="num">${yen(CALC.tot.asal)}</td><td class="num">${yen(CALC.tot.awel)}</td><td class="num">${yen(CALC.tot.asal + CALC.tot.awel)}</td><td></td></tr></tfoot>`;
+    return;
+  }
+  const w = VIEW === 'matrix-w', P = CALC.people;
+  const rate = p => w ? p.dwel : p.dsal;
+  $('res-tbl').innerHTML = `<thead><tr><th>現場コード</th><th>現場名</th>${P.map(p => `<th class="num">${esc(p.name)}<br><span class="muted" style="font-weight:400">日数／金額</span></th>`).join('')}<th class="num">日数計</th><th class="num">金額計</th></tr></thead>
+    <tbody><tr><td class="muted">日給</td><td></td>${P.map(p => `<td class="num muted">${rate(p) == null ? '—' : yen(rate(p))}</td>`).join('')}<td></td><td></td></tr>
+    ${CALC.codes.map(c => { let sd = 0, sa = 0; return `<tr class="${c === NOCODE ? 'nocode' : ''}"><td>${esc(c)}</td><td>${esc(siteName(c))}</td>${P.map(p => { const x = p.dm[c]; if (!x) return '<td></td>';
+      sd += x.days; const a = (rate(p) || 0) * x.days; sa += a; return `<td class="num ${x.manual ? 'manual' : ''}">${dd(x.days)}／${yen(a)}</td>`; }).join('')}<td class="num">${dd(sd)}</td><td class="num">${yen(sa)}</td></tr>`; }).join('')}</tbody>
+    <tfoot><tr><td>合計</td><td></td>${P.map(p => `<td class="num">${dd(p.total)}／${yen((rate(p) || 0) * p.total)}</td>`).join('')}<td class="num">${dd(CALC.tot.days)}</td><td class="num">${yen(w ? CALC.tot.awel : CALC.tot.asal)}</td></tr></tfoot>`;
+}
+$('view-seg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; VIEW = b.dataset.v; $('view-seg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderRes(); });
+
+// ---------- 保存 ----------
+$('save').onclick = async () => {
+  const bad = MAN.filter(m => m.emp || m.code || m.days);
+  if (bad.some(m => !m.emp || !/^\d{6}$/.test(m.code || '') || num(m.days) == null)) { alertMsg('保存できません', '② 手入力の日数に、社員・現場コード（6桁）・日数のどれかが空の行があります。'); return; }
+  const missingEmp = bad.filter(m => !ROWS.some(r => r.id === m.emp));
+  if (missingEmp.length) { alertMsg('保存できません', '② 手入力の日数に、① の一覧にいない社員がいます。① で「社員を追加」してください。'); return; }
+  // 給与も法定福利費も日数もない社員は保存しない（前月だけに出てきた社員など）
+  const keepRows = CALC.people.filter(p => p.sal != null || p.wel != null || p.total > 0 || bad.some(m => m.emp === p.id));
+  const people = keepRows.map((r, i) => ({ employee_id: r.id, salary: num(r.salary) ?? 0, welfare: num(r.welfare) ?? 0, sort_no: i + 1, notes: r.notes || null }));
+  const manual = bad.map(m => ({ employee_id: m.emp, code: m.code, days: num(m.days), notes: m.notes || null }));
+  $('save').disabled = true; $('save-msg').textContent = '保存しています…';
+  try {
+    await rpc('labor_save', { p_ym: DATA.ym + '-01', p_people: people, p_manual: manual });
+    await load(DATA.ym);
+  } catch (e) { $('save-msg').textContent = '保存に失敗しました: ' + e.message; }
+  finally { $('save').disabled = false; }
+};
+$('discard').onclick = () => { if (confirm('保存していない変更を破棄しますか？')) load(DATA.ym); };
+window.addEventListener('beforeunload', e => { if (DIRTY) { e.preventDefault(); e.returnValue = ''; } });
+
+// ---------- Excel から読み込み（今の振替表の月シート） ----------
+$('import-btn').onclick = () => $('import-file').click();
+$('import-file').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  let wb;
+  try { wb = new ExcelJS.Workbook(); await wb.xlsx.load(await f.arrayBuffer()); }
+  catch (err) { alertMsg('読み込めませんでした', 'Excel ファイル（.xlsx）を選んでください。<br>' + esc(err.message)); return; }
+  const sheets = wb.worksheets.filter(ws => /賃金/.test(ws.name));
+  if (!sheets.length) { alertMsg('読み込めませんでした', '「○賃金」という名前のシートが見つかりません。'); return; }
+  const m = Number(DATA.ym.split('-')[1]);
+  const def = sheets.find(ws => ws.name === m + '賃金') || sheets[sheets.length - 1];
+  const pick = await dialog('どのシートを読み込みますか？',
+    `<p>${esc(ymLabel(DATA.ym))} の画面に読み込みます。</p><select id="imp-sheet" style="margin-top:8px">${sheets.map(ws => `<option ${ws === def ? 'selected' : ''}>${esc(ws.name)}</option>`).join('')}</select>`,
+    [['やめる', null], ['次へ', 'ok', true]]);
+  if (!pick) return;
+  const ws = wb.getWorksheet(document.getElementById('imp-sheet')?.value || def.name) || def;
+  importSheet(ws);
+});
+function cellVal(c){ let v = c.value; if (v && typeof v === 'object') { if ('result' in v) v = v.result; else if (v.richText) v = v.richText.map(t => t.text).join(''); else if ('formula' in v || 'sharedFormula' in v) v = null; } return v; }
+async function importSheet(ws){
+  const empByName = {}; DATA.employees.forEach(e => empByName[normName(e.name)] = e);
+  DATA.people.forEach(p => empByName[normName(p.name)] ||= { id: p.id, name: p.name, honbu: p.honbu, dept: p.dept });
+  // 上段：A列=氏名・B列=月給与、D列=氏名・F列=法定福利費（「賃金」の見出しの手前まで）
+  const pay = {}, order = [];
+  for (let r = 3; r <= 60; r++) {
+    const a = cellVal(ws.getCell(r, 1));
+    if (a === '賃金') break;
+    if (typeof a === 'string' && normName(a) && typeof cellVal(ws.getCell(r, 2)) === 'number') { const k = normName(a); (pay[k] ||= {}).salary = cellVal(ws.getCell(r, 2)); order.push(k); }
+    const d = cellVal(ws.getCell(r, 4));
+    if (typeof d === 'string' && normName(d) && typeof cellVal(ws.getCell(r, 6)) === 'number') (pay[normName(d)] ||= {}).welfare = cellVal(ws.getCell(r, 6));
+  }
+  // 賃金表：「現場コード」の行に氏名、下の行に日数（氏名の列）
+  let hr = null;
+  for (let r = 1; r <= 200 && !hr; r++) if (cellVal(ws.getCell(r, 1)) === '現場コード') hr = r;
+  const sheetDays = {};   // name -> code -> days
+  if (hr) {
+    const cols = [];
+    for (let c = 3; c <= 80; c++) {
+      const cell = ws.getCell(hr, c); if (cell.isMerged && cell.master !== cell) continue;   // 結合セルの右側（金額の列）は飛ばす
+      const v = cellVal(cell); if (typeof v === 'string' && normName(v) && !/合計|計/.test(v) && !cols.some(x => x[1] === normName(v))) cols.push([c, normName(v)]);
+    }
+    for (let r = hr + 1; r <= hr + 150; r++) {
+      const a = cellVal(ws.getCell(r, 1));
+      if (a === '法定福利費') break;
+      const code = a == null ? '' : String(a).trim();
+      if (!/^\d{6}$/.test(code)) continue;
+      cols.forEach(([c, n]) => { const v = cellVal(ws.getCell(r, c)); if (typeof v === 'number' && v) ((sheetDays[n] ||= {})[code] = ((sheetDays[n] ||= {})[code] || 0) + v); });
+    }
+  }
+  const names = [...new Set([...order, ...Object.keys(pay), ...Object.keys(sheetDays)])];
+  const matched = names.filter(n => empByName[n]), unmatched = names.filter(n => !empByName[n]);
+  // アプリの日数（予定）との照合
+  const appDays = {}; DATA.days.forEach(d => ((appDays[d.emp] ||= {})[d.code] = Number(d.days)));
+  const noSched = [], diffs = [];
+  matched.forEach(n => {
+    const e = empByName[n], sd = sheetDays[n] || {}, ad = appDays[e.id] || {};
+    if (!Object.keys(ad).length) { if (Object.keys(sd).length) noSched.push(n); return; }
+    [...new Set([...Object.keys(sd), ...Object.keys(ad)])].sort().forEach(c => { const x = sd[c] || 0, y = ad[c] || 0; if (Math.abs(x - y) > 1e-9) diffs.push([e.name, c, x, y]); });
+  });
+  const html = `<p><b>${esc(ws.name)}</b> から読み取りました（画面の ${esc(ymLabel(DATA.ym))} に入れます）。</p>
+    <p style="margin-top:8px">月給与・法定福利費：${matched.filter(n => pay[n]).length} 名 ${unmatched.length ? `<span class="bad">／ 社員情報に見つからない氏名：${esc(unmatched.join('、'))}</span>` : ''}</p>
+    <label style="display:block;margin-top:8px"><input type="checkbox" id="imp-pay" checked> 月給与・法定福利費を入れる（並び順も Excel に合わせる）</label>
+    <label style="display:block;margin-top:4px"><input type="checkbox" id="imp-man" ${noSched.length ? 'checked' : 'disabled'}> 予定入力のない社員（${esc(noSched.map(n => empByName[n].name).join('、') || 'なし')}）の日数を ② 手入力 に入れる（その社員の手入力は置き換え）</label>
+    <p style="margin-top:12px"><b>Excel とアプリ（予定入力）の日数の照合</b>：${diffs.length ? `<span class="warn">${diffs.length} 件の差があります</span>` : '<span class="good">予定入力のある社員は全員一致</span>'}</p>
+    ${diffs.length ? `<table style="margin-top:6px"><thead><tr><th>社員</th><th>現場コード</th><th>現場名</th><th class="num">Excel</th><th class="num">アプリ</th></tr></thead><tbody>${diffs.map(([n, c, x, y]) => `<tr><td>${esc(n)}</td><td>${esc(c)}</td><td>${esc(siteName(c))}</td><td class="num">${dd(x) || 0}</td><td class="num">${dd(y) || 0}</td></tr>`).join('')}</tbody></table>
+      <p class="muted" style="margin-top:6px">差がある分は読み込みません（アプリは予定入力の日数で計算します）。必要なら予定入力を直すか、② 手入力で補ってください。</p>` : ''}`;
+  const ok = await dialog('Excel から読み込む', html, [['やめる', false], ['読み込む', true, true]]);
+  if (!ok) return;
+  const doPay = $('imp-pay').checked, doMan = $('imp-man').checked;
+  if (doPay) {
+    order.concat(Object.keys(pay)).filter((n, i, a) => a.indexOf(n) === i && empByName[n]).forEach(n => {
+      const e = empByName[n]; let r = ROWS.find(x => x.id === e.id);
+      if (!r) { const prev = DATA.people.find(p => p.id === e.id) || {}; r = { id: e.id, name: e.name, honbu: e.honbu, dept: e.dept, notes: '', prev_salary: prev.prev_salary, prev_welfare: prev.prev_welfare }; ROWS.push(r); }
+      if (pay[n].salary != null) r.salary = pay[n].salary; if (pay[n].welfare != null) r.welfare = pay[n].welfare;
+    });
+    const rank = n => { const i = order.indexOf(normName(n)); return i < 0 ? 999 : i; };
+    ROWS.sort((a, b) => rank(a.name) - rank(b.name));
+  }
+  if (doMan) noSched.forEach(n => {
+    const e = empByName[n];
+    if (!ROWS.some(x => x.id === e.id)) ROWS.push({ id: e.id, name: e.name, honbu: e.honbu, dept: e.dept, notes: '' });
+    MAN = MAN.filter(m => m.emp !== e.id).concat(Object.entries(sheetDays[n]).map(([code, days]) => ({ emp: e.id, code, days, notes: ws.name + ' から読込' })));
+  });
+  setDirty(true); renderAll();
+}
+
+// ---------- Excel 出力 ----------
+const FONT = { name: '游ゴシック', size: 11 };
+const FMT_D = '#,##0.0;[Red]\\-#,##0.0', FMT_Y = '#,##0_);[Red](#,##0)';
+const thin = { style: 'thin' }, hair = { style: 'hair' };
+const FILL_H = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+const FILL_M = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
+const FILL_E = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE2E1' } };
+function colL(n){ let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+
+function buildMonthSheet(wb, ym, calc){
+  const { m } = reiwa(ym);
+  const P = calc.people, codes = calc.codes, n = P.length;
+  const ws = wb.addWorksheet(m + '賃金', { views: [{ showGridLines: true }] });
+  const set = (r, c, v, o = {}) => { const cell = ws.getCell(r, c); cell.value = v; cell.font = { ...FONT, ...(o.font || {}) }; if (o.fmt) cell.numFmt = o.fmt; if (o.fill) cell.fill = o.fill; if (o.align) cell.alignment = o.align; if (o.border) cell.border = o.border; return cell; };
+  const f = (formula, result) => ({ formula, result: result == null || !isFinite(result) ? undefined : result });
+  const box = { top: hair, bottom: hair, left: thin, right: hair };
+
+  // 上段：月給与・法定福利費
+  const r0 = 3, sumRow = r0 + n + 1;
+  set(2, 1, m, { align: { horizontal: 'right' } }); set(2, 2, '月給与', { align: { horizontal: 'center' } });
+  set(2, 4, m, { align: { horizontal: 'right' } }); set(2, 5, '法定福利費', { align: { horizontal: 'center' } });
+  P.forEach((p, i) => {
+    set(r0 + i, 1, p.name, { border: box }); set(r0 + i, 2, p.sal ?? 0, { fmt: FMT_Y, border: box });
+    set(r0 + i, 4, p.name, { border: box }); set(r0 + i, 6, p.wel ?? 0, { fmt: FMT_Y, border: box });
+  });
+  set(sumRow, 1, '合計', { border: { top: thin, bottom: thin } });
+  set(sumRow, 2, f(`SUM(B${r0}:B${sumRow - 1})`, calc.tot.sal), { fmt: FMT_Y, border: { top: thin, bottom: thin } });
+  set(sumRow, 4, '合計', { border: { top: thin, bottom: thin } });
+  set(sumRow, 6, f(`SUM(F${r0}:F${sumRow - 1})`, calc.tot.wel), { fmt: FMT_Y, border: { top: thin, bottom: thin } });
+
+  const dayCol = i => 4 + 2 * i, amtCol = i => 5 + 2 * i;
+  const dTot = 4 + 2 * n, aTot = 5 + 2 * n, chk = 6 + 2 * n;
+
+  // 賃金表・法定福利費表（同じ形）
+  function table(top, title, srcCol, rateKey, totKey, wageTable){
+    const H = top, rate = H + 2, first = H + 3, last = first + codes.length - 1, T = last + 1;
+    set(H, 1, title, { font: { bold: true } });
+    set(H, aTot, ymLabel(ym), { align: { horizontal: 'right' } });
+    const hb = { top: thin, bottom: hair, left: thin, right: thin };
+    set(H + 1, 1, '現場コード', { fill: FILL_H, border: hb, align: { horizontal: 'center' } });
+    set(H + 1, 2, '現場名', { fill: FILL_H, border: hb, align: { horizontal: 'center' } });
+    set(H + 1, 3, null, { fill: FILL_H, border: hb });
+    P.forEach((p, i) => {
+      set(H + 1, dayCol(i), p.name, { fill: FILL_H, border: hb, align: { horizontal: 'center' } });
+      set(H + 1, amtCol(i), null, { fill: FILL_H, border: hb });
+      ws.mergeCells(H + 1, dayCol(i), H + 1, amtCol(i));
+      set(rate, dayCol(i), '日給', { border: { left: thin, bottom: thin } });
+      set(rate, amtCol(i), f(`IF(${colL(dayCol(i))}${T}=0,0,${srcCol}${r0 + i}/${colL(dayCol(i))}${T})`, p[rateKey] ?? 0), { fmt: FMT_Y, border: { bottom: thin } });
+    });
+    set(H + 1, dTot, '日数計', { fill: FILL_H, border: hb, align: { horizontal: 'center' } });
+    set(H + 1, aTot, '合計', { fill: FILL_H, border: hb, align: { horizontal: 'center' } });
+    set(H + 1, chk, '検算', { fill: FILL_H, border: hb, align: { horizontal: 'center' } });
+    codes.forEach((c, k) => {
+      const r = first + k, rb = { bottom: hair, left: thin, right: hair };
+      const nocode = c === NOCODE;
+      set(r, 1, /^\d+$/.test(c) ? Number(c) : c, { border: rb, fill: nocode ? FILL_E : undefined });
+      set(r, 2, siteNameFor(calc, c), { border: rb, fill: nocode ? FILL_E : undefined });
+      set(r, 3, null, { border: rb });
+      let sd = 0, sa = 0;
+      P.forEach((p, i) => {
+        const x = p.dm[c], dc = colL(dayCol(i)), wr = wageTable ? wageTable.first + k : null;
+        if (x) {
+          sd += x.days; const a = (p[rateKey] || 0) * x.days; sa += a;
+          set(r, dayCol(i), wageTable ? f(`${dc}${wr}`, x.days) : x.days, { fmt: FMT_D, border: rb, fill: x.manual ? FILL_M : undefined });
+          set(r, amtCol(i), f(`$${colL(amtCol(i))}$${rate}*${dc}${r}`, a), { fmt: FMT_Y, border: rb });
+        } else {
+          set(r, dayCol(i), null, { fmt: FMT_D, border: rb }); set(r, amtCol(i), null, { fmt: FMT_Y, border: rb });
+        }
+      });
+      set(r, dTot, f(`SUM(${P.map((_, i) => colL(dayCol(i)) + r).join(',')})`, sd), { fmt: FMT_D, border: rb });
+      set(r, aTot, f(`SUM(${P.map((_, i) => colL(amtCol(i)) + r).join(',')})`, sa), { fmt: FMT_Y, border: rb });
+    });
+    const tb = { top: thin, bottom: thin, left: thin, right: hair };
+    set(T, 1, '合計', { border: tb, font: { bold: true } }); set(T, 2, null, { border: tb }); set(T, 3, null, { border: tb });
+    P.forEach((p, i) => {
+      set(T, dayCol(i), f(`SUM(${colL(dayCol(i))}${first}:${colL(dayCol(i))}${last})`, p.total), { fmt: FMT_D, border: tb });
+      set(T, amtCol(i), f(`SUM(${colL(amtCol(i))}${first}:${colL(amtCol(i))}${last})`, (p[rateKey] || 0) * p.total), { fmt: FMT_Y, border: tb });
+    });
+    const totA = rateKey === 'dsal' ? calc.tot.asal : calc.tot.awel;
+    set(T, dTot, f(`SUM(${colL(dTot)}${first}:${colL(dTot)}${last})`, calc.tot.days), { fmt: FMT_D, border: tb });
+    set(T, aTot, f(`SUM(${colL(aTot)}${first}:${colL(aTot)}${last})`, totA), { fmt: FMT_Y, border: tb, font: { bold: true } });
+    set(T, chk, f(`${srcCol}${sumRow}-${colL(aTot)}${T}`, calc.tot[totKey] - totA), { fmt: FMT_Y, border: tb });
+    set(T + 1, chk, '0 なら一致', { font: { size: 9, color: { argb: 'FF808080' } } });
+    return { H, first, last, T };
+  }
+  const t1 = table(sumRow + 2, '賃金', 'B', 'dsal', 'sal', null);
+  const t2 = table(t1.T + 3, '法定福利費', 'F', 'dwel', 'wel', t1);
+
+  ws.getColumn(1).width = 13.5; ws.getColumn(2).width = 30; ws.getColumn(3).width = 2;
+  for (let c = 4; c <= chk; c++) ws.getColumn(c).width = 10;
+  ws.views = [{ state: 'frozen', xSplit: 2, ySplit: 0 }];
+  ws.pageSetup = { paperSize: 8, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+    printArea: `A${t1.H}:${colL(chk)}${t2.T}`, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 } };
+  ws.headerFooter = { oddHeader: `&L労務費現場振替表 ${ymLabel(ym)}&R出力 ${new Date().toLocaleString('ja-JP')}`, oddFooter: '&C&P / &N' };
+  return ws;
+}
+function siteNameFor(calc, c){ return calc.siteNames?.[c] ?? siteName(c); }
+
+$('export-btn').onclick = async () => {
+  if (DIRTY) { alertMsg('先に保存してください', '保存していない変更があります。Excel は保存済みの内容で出力します。'); return; }
+  let from = $('ex-from').value, to = $('ex-to').value;
+  if (!from || !to) return;
+  if (from > to) [from, to] = [to, from];
+  const months = []; for (let x = from; x <= to && months.length < 24; x = ymAdd(x, 1)) months.push(x);
+  $('export-btn').disabled = true; $('export-msg').textContent = '作成しています…';
+  try {
+    const wb = new ExcelJS.Workbook(); wb.creator = ME.name; wb.created = new Date();
+    wb.calcProperties = { fullCalcOnLoad: true };
+    const allCodes = {}; const warn = [];
+    const keep = DATA;
+    for (const ym of months) {
+      const d = ym === DATA.ym ? DATA : await rpc('labor_sheet', { p_ym: ym + '-01' });
+      const rows = d.people.filter(p => p.saved).map(p => ({ id: p.id, name: p.name, salary: p.salary, welfare: p.welfare }));
+      const active = new Set([...d.days.map(x => x.emp), ...d.manual.map(x => x.emp)]);
+      d.people.filter(p => !p.saved && active.has(p.id)).forEach(p => rows.push({ id: p.id, name: p.name, salary: null, welfare: null }));
+      if (!d.people.some(p => p.saved)) warn.push(`${ymLabel(ym)}：給与が未保存`);
+      DATA = d;   // siteName() 用
+      const calc = compute(rows, d.manual.map(x => ({ emp: x.emp, code: x.code, days: x.days })), d);
+      calc.siteNames = Object.fromEntries(calc.codes.map(c => [c, siteName(c)]));
+      if (Math.abs(calc.tot.sal - calc.tot.asal) >= 0.5 || Math.abs(calc.tot.wel - calc.tot.awel) >= 0.5) warn.push(`${ymLabel(ym)}：検算が 0 になりません（日数のない社員・給与未入力の社員を確認）`);
+      buildMonthSheet(wb, ym, calc);
+      d.codes.forEach(c => allCodes[c.code] = c.site);
+      DATA = keep;
+    }
+    const cs = wb.addWorksheet('現場コード');
+    cs.getColumn(1).width = 12; cs.getColumn(2).width = 40;
+    cs.getCell(1, 1).value = '現場コード'; cs.getCell(1, 2).value = '現場名';
+    [[HQ_CODE, HQ_NAME], ...Object.entries(allCodes).sort((a, b) => a[0].localeCompare(b[0]))].forEach(([c, s], i) => { cs.getCell(i + 2, 1).value = Number(c); cs.getCell(i + 2, 2).value = s; });
+    cs.getRow(1).font = { ...FONT, bold: true };
+    const buf = await wb.xlsx.writeBuffer();
+    const a = document.createElement('a');
+    const r1 = reiwa(months[0]), r2 = reiwa(months[months.length - 1]);
+    a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = `労務費現場振替表R${r1.r}_${r1.m}月${months.length > 1 ? '〜' + (r2.r !== r1.r ? 'R' + r2.r + '_' : '') + r2.m + '月' : ''}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    $('export-msg').textContent = '出力しました' + (warn.length ? '（注意: ' + warn.join('／') + '）' : '');
+  } catch (e) { $('export-msg').textContent = '出力に失敗しました: ' + e.message; }
+  finally { $('export-btn').disabled = false; }
+};
+
+// ---------- 一定時間操作がなければ隠す ----------
+let idleTimer = null;
+function bump(){ clearTimeout(idleTimer); idleTimer = setTimeout(() => { if (!$('app').classList.contains('hidden')) $('veil').classList.remove('hidden'); }, IDLE_MS); }
+['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(ev => window.addEventListener(ev, bump, { passive: true }));
+$('veil-btn').onclick = async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { $('veil').classList.add('hidden'); show('gate'); return; }
+  $('veil').classList.add('hidden'); bump();
+};
+sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') { DATA = null; ROWS = []; MAN = []; setDirty(false); show('gate'); } });
+
+bump();
+start();
+</script>
+</body>
+</html>
