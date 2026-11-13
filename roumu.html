@@ -194,6 +194,35 @@ dialog .body{font-size:12.5px;line-height:1.7;max-height:60vh;overflow:auto;}
         <span class="muted" style="font-size:12px" id="export-msg"></span>
       </div>
     </div>
+
+    <div class="card" id="freee-card">
+      <h2>⑤ freee 会計の連携データ（振替伝票）</h2>
+      <div class="note">保存済みの振替結果から、freee の「仕訳インポート」用の CSV を作ります（1枚の振替伝票：借方＝現場コードごとの 給与・社会保険料、貸方＝それぞれの合計）。
+        金額は円未満を四捨五入し、端数の差は 給与・社会保険料 それぞれ金額が最大の行で調整します。<br>
+        セグメント1（工事名）は freee に登録済みの名前と完全に一致させてください。一度保存した対応は次の月から自動で入ります（空欄のコードは kintone の工事名が候補に出ます）。</div>
+      <div id="freee-msg" class="note"></div>
+      <details style="margin-bottom:10px"><summary style="cursor:pointer;font-size:12.5px;color:var(--text-secondary)">伝票の設定（勘定科目・部門・税区分・摘要）</summary>
+        <div class="bar" style="margin-top:8px">
+          <label class="muted" style="font-size:12px">勘定科目</label><input id="fr-account" style="width:180px">
+          <label class="muted" style="font-size:12px">部門</label><input id="fr-dept" style="width:140px">
+          <label class="muted" style="font-size:12px">税区分</label><input id="fr-tax" style="width:90px">
+        </div>
+        <div class="bar">
+          <label class="muted" style="font-size:12px">摘要（給与）</label><input id="fr-memo-s" style="width:300px">
+          <label class="muted" style="font-size:12px">摘要（社会保険料）</label><input id="fr-memo-w" style="width:300px">
+          <span class="muted" style="font-size:11px">{月} は月の数字に置き換わります</span>
+        </div>
+      </details>
+      <div class="bar">
+        <label class="muted" style="font-size:12px">日付</label><input type="date" id="fr-date" style="width:150px">
+        <label class="muted" style="font-size:12px">伝票番号</label><input id="fr-no" style="width:110px" inputmode="numeric">
+        <span class="grow"></span>
+        <button type="button" class="small" id="fr-save">対応・設定を保存</button>
+        <button type="button" class="primary" id="fr-export">freee 用 CSV を出力</button>
+      </div>
+      <div class="tbl-wrap"><table id="fr-tbl"></table></div>
+      <datalist id="seg-list"></datalist>
+    </div>
   </div>
 
   <div class="savebar" id="savebar">
@@ -242,7 +271,7 @@ function siteName(code){
   const c = (DATA?.codes || []).find(x => x.code === code); return c ? c.site : '';
 }
 function codeSort(a, b){ if (a === NOCODE) return 1; if (b === NOCODE) return -1; if (a === HQ_CODE) return 1; if (b === HQ_CODE) return -1; return a.localeCompare(b); }
-function setDirty(v){ DIRTY = v; $('savebar').classList.toggle('show', v); }
+function setDirty(v){ const ch = DIRTY !== v; DIRTY = v; $('savebar').classList.toggle('show', v); if (ch && typeof renderFreee === 'function') renderFreee(); }
 async function rpc(name, args){
   const { data, error } = await sb.rpc(name, args || {});
   if (error) { const e = new Error(error.message); e.code = error.code; throw e; }
@@ -325,6 +354,7 @@ async function load(ym){
     .map(s => `<option value="${esc(s.split(' ')[0])}">${esc(s)}</option>`).join('');
   setDirty(false);
   renderAll();
+  await loadFreee();
 }
 async function changeMonth(ym){
   if (!ym) return;
@@ -379,7 +409,7 @@ function missingSlots(empId){
 }
 
 // ---------- 描画 ----------
-function renderAll(){ CALC = compute(ROWS, MAN, DATA); renderTiles(); renderAlerts(); renderPay(); renderMan(); renderRes(); renderAddEmp(); }
+function renderAll(){ CALC = compute(ROWS, MAN, DATA); renderTiles(); renderAlerts(); renderPay(); renderMan(); renderRes(); renderAddEmp(); renderFreee(); }
 function renderTiles(){
   const t = CALC.tot, diffS = t.sal - t.asal, diffW = t.wel - t.awel;
   const ok = Math.abs(diffS) < 0.5 && Math.abs(diffW) < 0.5;
@@ -529,6 +559,16 @@ $('save').onclick = async () => {
   if (bad.some(m => !m.emp || !/^\d{6}$/.test(m.code || '') || num(m.days) == null)) { alertMsg('保存できません', '② 手入力の日数に、社員・現場コード（6桁）・日数のどれかが空の行があります。'); return; }
   const missingEmp = bad.filter(m => !ROWS.some(r => r.id === m.emp));
   if (missingEmp.length) { alertMsg('保存できません', '② 手入力の日数に、① の一覧にいない社員がいます。① で「社員を追加」してください。'); return; }
+  // 検算が合わない（振り分けられていない給与がある）ときは確認する
+  const t = CALC.tot;
+  if (Math.abs(t.sal - t.asal) >= 0.5 || Math.abs(t.wel - t.awel) >= 0.5) {
+    const zero = CALC.people.filter(p => p.total === 0 && (p.sal || p.wel));
+    const html = `<p>検算が合っていません（給与 − 振替合計：賃金 <b>${yen(t.sal - t.asal)}</b> 円／法定福利費 <b>${yen(t.wel - t.awel)}</b> 円）。</p>
+      ${zero.length ? `<p style="margin-top:8px">次の社員は日数が 0 のため、給与がどの現場コードにも振り分けられていません。予定のない社員は ② 手入力の日数 に入れてください。</p>
+        <ul style="margin:6px 0 0 20px">${zero.map(p => `<li>${esc(p.name)}（月給与 ${yen(p.sal)} 円・法定福利費 ${yen(p.wel)} 円）</li>`).join('')}</ul>` : ''}
+      <p style="margin-top:10px">このまま保存すると、経営ダッシュボードの労務費・Excel 出力も合わないままになります。保存しますか？</p>`;
+    if (!await dialog('振り分けられていない給与があります', html, [['戻って直す', false, true], ['このまま保存', true]])) return;
+  }
   // 給与も法定福利費も日数もない社員は保存しない（前月だけに出てきた社員など）
   const keepRows = CALC.people.filter(p => p.sal != null || p.wel != null || p.total > 0 || bad.some(m => m.emp === p.id));
   const people = keepRows.map((r, i) => ({ employee_id: r.id, salary: num(r.salary) ?? 0, welfare: num(r.welfare) ?? 0, sort_no: i + 1, notes: r.notes || null }));
@@ -767,6 +807,102 @@ $('export-btn').onclick = async () => {
     $('export-msg').textContent = '出力しました' + (warn.length ? '（注意: ' + warn.join('／') + '）' : '');
   } catch (e) { $('export-msg').textContent = '出力に失敗しました: ' + e.message; }
   finally { $('export-btn').disabled = false; }
+};
+
+
+// ---------- freee 会計の連携データ ----------
+let FREEE = null, SEG_EDIT = {}, FREEE_DIRTY = false;
+const tpl = (t, ym) => String(t || '').replaceAll('{月}', String(Number(ym.split('-')[1])));
+function monthEnd(ym){ const [y, m] = ym.split('-').map(Number); const d = new Date(y, m, 0); return y + '-' + String(m).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+async function loadFreee(){
+  try { FREEE = await rpc('labor_freee'); }
+  catch (e) { FREEE = null; $('freee-msg').innerHTML = `<span class="bad">freee 連携の設定を読み込めません（SQL 20_freee_export.sql が未実行の可能性があります）: ${esc(e.message)}</span>`; $('fr-tbl').innerHTML = ''; return; }
+  SEG_EDIT = {}; FREEE_DIRTY = false;
+  const st = FREEE.settings || {};
+  $('fr-account').value = st.account || ''; $('fr-dept').value = st.dept || ''; $('fr-tax').value = st.tax || '';
+  $('fr-memo-s').value = st.memo_salary || ''; $('fr-memo-w').value = st.memo_welfare || '';
+  $('fr-date').value = monthEnd(DATA.ym); $('fr-no').value = DATA.ym.replace('-', '');
+  const names = new Set([...FREEE.segments.map(x => x.segment), ...FREEE.candidates.map(x => x.official).filter(Boolean)]);
+  $('seg-list').innerHTML = [...names].sort().map(n => `<option value="${esc(n)}">`).join('');
+  renderFreee();
+}
+function segOf(code){
+  if (code in SEG_EDIT) return SEG_EDIT[code];
+  const f = FREEE.segments.find(x => x.code === code); return f ? f.segment : '';
+}
+function candOf(code){ const c = FREEE.candidates.find(x => x.code === code); return c ? (c.official || c.short || '') : ''; }
+function freeeLines(){
+  // 借方の行（現場コードごと）と貸方の合計。端数は種類ごとに金額最大の行で調整
+  const rows = CALC.byCode.map(r => ({ code: r.code, site: r.site, seg: segOf(r.code), s: Math.round(r.sal), w: Math.round(r.wel) }));
+  const credS = Math.round(CALC.tot.sal), credW = Math.round(CALC.tot.wel);
+  const adj = (k, cred) => { const sum = rows.reduce((a, r) => a + r[k], 0), d = cred - sum; if (!d || !rows.length) return 0;
+    const mx = rows.reduce((b, r) => r[k] > b[k] ? r : b, rows[0]); mx[k] += d; mx[k + 'adj'] = d; return d; };
+  const dS = adj('s', credS), dW = adj('w', credW);
+  const err = [];
+  if (Math.abs(CALC.tot.sal - CALC.tot.asal) >= 0.5 || Math.abs(CALC.tot.wel - CALC.tot.awel) >= 0.5) err.push('検算が合っていません（振り分けられていない給与があります）。① ② を直して保存してください');
+  if (rows.some(r => r.code === NOCODE)) err.push('現場コードのない予定があります。現場マスタでコードを登録してください');
+  rows.filter(r => r.code !== NOCODE && (r.s || r.w) && !r.seg).forEach(r => err.push(`${r.code}（${r.site}）の freee セグメント1（工事名）が空です`));
+  rows.filter(r => r.seg && r.seg.length > 100).forEach(r => err.push(`${r.code} のセグメント名が100文字を超えています`));
+  return { rows, credS, credW, dS, dW, err };
+}
+function renderFreee(){
+  if (!FREEE || !CALC) return;
+  const L = freeeLines();
+  const sumS = L.rows.reduce((a, r) => a + r.s, 0), sumW = L.rows.reduce((a, r) => a + r.w, 0);
+  $('fr-tbl').innerHTML = `<thead><tr><th>現場コード</th><th>現場名（アプリ）</th><th>freee セグメント1（工事名）</th><th class="num">給与</th><th class="num">社会保険料</th></tr></thead>
+    <tbody>${L.rows.map((r, i) => { const cand = candOf(r.code); const saved = FREEE.segments.some(x => x.code === r.code);
+      return `<tr class="${r.code === NOCODE ? 'nocode' : ''}"><td>${esc(r.code)}</td><td class="muted">${esc(r.site)}</td>
+      <td>${r.code === NOCODE ? '<span class="bad">現場コードなし</span>' : `<input data-seg="${esc(r.code)}" list="seg-list" value="${esc(r.seg)}" style="width:420px;max-width:60vw" placeholder="${esc(cand ? '候補: ' + cand : 'freee のセグメント名')}">
+        ${!r.seg && cand ? `<button type="button" class="small" data-usecand="${esc(r.code)}">候補を使う</button>` : ''}${r.seg && !saved ? ' <span class="warn" style="font-size:11px">未保存</span>' : ''}`}</td>
+      <td class="num">${yen(r.s)}${r.sadj ? ` <span class="muted" style="font-size:11px">(${r.sadj > 0 ? '+' : ''}${r.sadj})</span>` : ''}</td>
+      <td class="num">${yen(r.w)}${r.wadj ? ` <span class="muted" style="font-size:11px">(${r.wadj > 0 ? '+' : ''}${r.wadj})</span>` : ''}</td></tr>`; }).join('')}</tbody>
+    <tfoot><tr><td>借方 合計</td><td></td><td></td><td class="num">${yen(sumS)}</td><td class="num">${yen(sumW)}</td></tr>
+      <tr><td>貸方（合計1行ずつ）</td><td></td><td class="muted">${esc($('fr-account').value)}／${esc($('fr-dept').value)}</td><td class="num">${yen(L.credS)}</td><td class="num">${yen(L.credW)}</td></tr></tfoot>`;
+  const m = [];
+  if (DIRTY) m.push('<span class="warn">① ② に保存していない変更があります。CSV は保存してから出力してください。</span>');
+  if (L.err.length) m.push('<span class="bad">' + L.err.map(esc).join('<br>') + '</span>');
+  if (FREEE_DIRTY) m.push('<span class="warn">セグメントの対応・設定に保存していない変更があります（出力はそのまま可能です）。</span>');
+  $('freee-msg').innerHTML = m.join('<br>');
+}
+$('fr-tbl').addEventListener('input', e => { const c = e.target.dataset.seg; if (!c) return; SEG_EDIT[c] = e.target.value.trim(); FREEE_DIRTY = true; });
+$('fr-tbl').addEventListener('change', e => { if (e.target.dataset.seg) renderFreee(); });
+$('fr-tbl').addEventListener('click', e => { const b = e.target.closest('button[data-usecand]'); if (!b) return; SEG_EDIT[b.dataset.usecand] = candOf(b.dataset.usecand); FREEE_DIRTY = true; renderFreee(); });
+['fr-account', 'fr-dept', 'fr-tax', 'fr-memo-s', 'fr-memo-w'].forEach(id => $(id).addEventListener('input', () => { FREEE_DIRTY = true; }));
+$('fr-save').onclick = async () => {
+  const segs = Object.entries(SEG_EDIT).map(([code, segment]) => ({ code, segment }));
+  try {
+    await rpc('labor_freee_save', { p_settings: { account: $('fr-account').value, dept: $('fr-dept').value, tax: $('fr-tax').value, memo_salary: $('fr-memo-s').value, memo_welfare: $('fr-memo-w').value }, p_segments: segs });
+    const keepDate = $('fr-date').value, keepNo = $('fr-no').value;
+    await loadFreee(); $('fr-date').value = keepDate; $('fr-no').value = keepNo;
+    $('freee-msg').insertAdjacentHTML('afterbegin', '<span class="good">保存しました。</span><br>');
+  } catch (e) { alertMsg('保存できませんでした', esc(e.message)); }
+};
+$('fr-export').onclick = () => {
+  if (DIRTY) { alertMsg('先に保存してください', '① ② に保存していない変更があります。'); return; }
+  const L = freeeLines();
+  if (L.err.length) { alertMsg('CSV を出力できません', L.err.map(esc).join('<br>')); return; }
+  const date = $('fr-date').value, no = $('fr-no').value.trim();
+  if (!date || !/^\d{1,20}$/.test(no)) { alertMsg('CSV を出力できません', '日付と伝票番号（半角数字）を入れてください。'); return; }
+  const acc = $('fr-account').value.trim(), dept = $('fr-dept').value.trim(), tax = $('fr-tax').value.trim();
+  const memoS = tpl($('fr-memo-s').value, DATA.ym), memoW = tpl($('fr-memo-w').value, DATA.ym);
+  const H = ['[表題行]', '日付', '伝票番号', '決算整理仕訳',
+    ...['借方', '貸方'].flatMap(k => ['勘定科目', '科目コード', '補助科目', '取引先', '取引先コード', '部門', '品目', 'メモタグ', 'セグメント1', 'セグメント2', 'セグメント3', '金額', '税区分', '税額'].map(x => k + x)), '摘要'];
+  const side = (amt, seg) => [acc, '', '', '', '', dept, '', '', seg || '', '', '', String(amt), tax, ''];
+  const blank = Array(14).fill('');
+  const d = date.replaceAll('-', '/');
+  const out = [];
+  const sal = L.rows.filter(r => r.s > 0), wel = L.rows.filter(r => r.w > 0);
+  sal.forEach((r, i) => out.push(['[明細行]', d, no, '', ...side(r.s, r.seg), ...(i === 0 ? side(L.credS, '') : blank), memoS]));
+  wel.forEach((r, i) => out.push(['[明細行]', d, no, '', ...side(r.w, r.seg), ...(i === 0 ? side(L.credW, '') : blank), memoW]));
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const csv = '\ufeff' + [H, ...out].map(r => r.map(q).join(',')).join('\r\n') + '\r\n';
+  const a = document.createElement('a');
+  const { r, m } = reiwa(DATA.ym);
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `freee振替伝票_労務費現場振替_R${r}_${m}月.csv`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  $('freee-msg').innerHTML = `<span class="good">出力しました（明細 ${out.length} 行・借方 ${yen(L.credS + L.credW)} 円＝貸方 ${yen(L.credS + L.credW)} 円）。</span>`
+    + (FREEE_DIRTY ? '<br><span class="warn">セグメントの対応・設定は未保存です。次の月のために「対応・設定を保存」してください。</span>' : '');
 };
 
 // ---------- 一定時間操作がなければ隠す ----------
