@@ -7,6 +7,7 @@
 <title>労務費現場振替表</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --surface-0:#f5f5f3; --surface-1:#ffffff; --border:#e6e5df; --grid:#eeede8;
@@ -152,9 +153,11 @@ dialog .body{font-size:12.5px;line-height:1.7;max-height:60vh;overflow:auto;}
 
     <div class="card">
       <h2>① 月給与・法定福利費 <span class="muted" style="font-weight:400;font-size:12px" id="saved-info"></span></h2>
-      <div class="note">社員ごとの その月の 月給与・法定福利費 を入れて「保存」します。日数は予定入力（業務日報）から自動で数えます（午前・午後 各0.5日。現場→現場コード、本社→489000 諸工事。休み・有給は含めない）。<br>
+      <div class="note">社員ごとの その月の 月給与・法定福利費 を入れて「保存」します。給与大臣から書き出した賃金台帳（勤怠支給控除一覧表）を読み込むと自動で入ります（月給与＝支給合計額−通勤手当、法定福利費＝健康保険＋厚生年金保険）。<br>日数は予定入力（業務日報）から自動で数えます（午前・午後 各0.5日。現場→現場コード、本社→489000 諸工事。休み・有給は含めない）。<br>
         並び順は Excel 出力の列の順になります（↑↓で変更）。この月に関係のない社員は × で外せます。</div>
       <div class="bar">
+        <button type="button" class="small primary" id="kyuyo-btn">給与大臣（賃金台帳）から読み込む</button>
+        <input type="file" id="kyuyo-file" accept=".xls,.xlsx,.csv" class="hidden">
         <button type="button" class="small" id="copy-prev">前月の金額を入れる</button>
         <button type="button" class="small" id="import-btn">Excel（今の振替表）から読み込む</button>
         <input type="file" id="import-file" accept=".xlsx,.xlsm" class="hidden">
@@ -582,6 +585,70 @@ $('save').onclick = async () => {
 };
 $('discard').onclick = () => { if (confirm('保存していない変更を破棄しますか？')) load(DATA.ym); };
 window.addEventListener('beforeunload', e => { if (DIRTY) { e.preventDefault(); e.returnValue = ''; } });
+
+
+// ---------- 給与大臣（賃金台帳＝勤怠支給控除一覧表）から読み込み ----------
+//   月給与     = 支給合計額 − 通勤手当（通勤手当の列が複数あればすべて引く）
+//   法定福利費 = 健康保険 + 厚生年金保険（＝社会保険計 − 雇用保険。違えば警告）
+$('kyuyo-btn').onclick = () => $('kyuyo-file').click();
+$('kyuyo-file').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  let rows;
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', codepage: 932 });
+    rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null });
+  } catch (err) { alertMsg('読み込めませんでした', '給与大臣から書き出したファイル（.xls／.xlsx／.csv）を選んでください。<br>' + esc(err.message)); return; }
+  importKyuyo(rows, f.name);
+});
+function importKyuyo(rows, fname){
+  const hr = rows.findIndex(r => r && r.some(c => String(c ?? '').trim() === '社員名') && r.some(c => String(c ?? '').trim() === '支給合計額'));
+  if (hr < 0) { alertMsg('読み込めませんでした', '見出しに「社員名」「支給合計額」がある表が見つかりません。給与大臣の 勤怠支給控除一覧表（賃金台帳）を書き出したファイルを選んでください。'); return; }
+  const H = rows[hr].map(c => String(c ?? '').replace(/\s/g, ''));
+  const col = k => H.indexOf(k), cols = k => H.map((h, i) => h === k ? i : -1).filter(i => i >= 0);
+  const miss = ['社員名', '支給合計額', '健康保険', '厚生年金保険'].filter(k => col(k) < 0);
+  if (miss.length) { alertMsg('読み込めませんでした', '次の列が見つかりません: ' + esc(miss.join('、'))); return; }
+  const n = v => { const x = Number(String(v ?? '').replace(/[,，\s]/g, '')); return isFinite(x) ? x : 0; };
+  const cTsu = cols('通勤手当'), cY = col('支給日[年]'), cM = col('支給日[月]'), cShaho = col('社会保険計'), cKoyo = col('雇用保険'), cKikin = col('厚生年金基金');
+  const empByName = {}; DATA.employees.forEach(x => empByName[normName(x.name)] = x);
+  DATA.people.forEach(p => empByName[normName(p.name)] ||= { id: p.id, name: p.name, honbu: p.honbu, dept: p.dept });
+  const items = [], warn = [], ymSeen = new Set();
+  rows.slice(hr + 1).forEach(r => {
+    const name = String(r?.[col('社員名')] ?? '').trim();
+    if (!name || /^合計/.test(normName(name))) return;
+    const gross = n(r[col('支給合計額')]), tsu = cTsu.reduce((a, i) => a + n(r[i]), 0);
+    const ken = n(r[col('健康保険')]), kou = n(r[col('厚生年金保険')]);
+    const sal = gross - tsu, wel = ken + kou;
+    if (cShaho >= 0 && cKoyo >= 0 && n(r[cShaho]) - n(r[cKoyo]) !== wel)
+      warn.push(`${name}：社会保険計−雇用保険（${(n(r[cShaho]) - n(r[cKoyo])).toLocaleString()}）と 健康保険＋厚生年金保険（${wel.toLocaleString()}）が違います${cKikin >= 0 && n(r[cKikin]) ? '（厚生年金基金あり）' : ''}`);
+    if (cY >= 0 && cM >= 0 && r[cY] && r[cM]) ymSeen.add(`${Number(r[cY])}-${String(Number(r[cM])).padStart(2, '0')}`);
+    const e = empByName[normName(name)];
+    items.push({ name, gross, tsu, sal, ken, kou, wel, emp: e, cur: e ? ROWS.find(x => x.id === e.id) : null });
+  });
+  if (!items.length) { alertMsg('読み込めませんでした', '社員の行がありません。'); return; }
+  const unmatched = items.filter(x => !x.emp);
+  const notIn = CALC.people.filter(p => p.total > 0 && !items.some(x => x.emp && x.emp.id === p.id));
+  const ymNote = ymSeen.size && ![...ymSeen].includes(DATA.ym) ? `<p class="warn" style="margin-top:6px">ファイルの支給月（${esc([...ymSeen].join('、'))}）と、画面の月（${esc(DATA.ym)}）が違います。月を確認してください。</p>` : '';
+  const diff = (a, b) => b == null ? '<span class="muted">未入力</span>' : a === Number(b) ? '<span class="good">同じ</span>' : `<span class="warn">${Number(b).toLocaleString()}→変更</span>`;
+  const html = `<p><b>${esc(fname)}</b>（${items.length} 名）を ${esc(ymLabel(DATA.ym))} の ① に入れます。</p>${ymNote}
+    <p class="muted" style="margin-top:4px">月給与＝支給合計額−通勤手当、法定福利費＝健康保険＋厚生年金保険</p>
+    <table style="margin-top:8px"><thead><tr><th>社員名</th><th class="num">支給合計額</th><th class="num">通勤手当</th><th class="num">月給与</th><th>今の値</th><th class="num">健康保険</th><th class="num">厚生年金</th><th class="num">法定福利費</th><th>今の値</th></tr></thead><tbody>
+    ${items.map(x => `<tr class="${x.emp ? '' : 'nocode'}"><td>${esc(x.name)}${x.emp ? (x.cur ? '' : ' <span class="muted">（①に追加）</span>') : ' <span class="bad">社員情報に見つかりません</span>'}</td>
+      <td class="num">${yen(x.gross)}</td><td class="num">${x.tsu ? yen(x.tsu) : ''}</td><td class="num"><b>${yen(x.sal)}</b></td><td>${x.cur ? diff(x.sal, x.cur.salary) : ''}</td>
+      <td class="num">${yen(x.ken)}</td><td class="num">${yen(x.kou)}</td><td class="num"><b>${yen(x.wel)}</b></td><td>${x.cur ? diff(x.wel, x.cur.welfare) : ''}</td></tr>`).join('')}</tbody></table>
+    ${unmatched.length ? `<p class="bad" style="margin-top:8px">社員情報に見つからない氏名は読み込みません：${esc(unmatched.map(x => x.name).join('、'))}（ポータルの社員情報と氏名の表記が違う可能性があります）</p>` : ''}
+    ${notIn.length ? `<p class="warn" style="margin-top:8px">予定の日数があるのに賃金台帳にない社員：${esc(notIn.map(x => x.name).join('、'))}（今の金額のままにします）</p>` : ''}
+    ${warn.length ? `<p class="warn" style="margin-top:8px">${warn.map(esc).join('<br>')}</p>` : ''}`;
+  dialog('給与大臣（賃金台帳）から読み込む', html, [['やめる', false], ['読み込む', true, true]]).then(ok => {
+    if (!ok) return;
+    items.filter(x => x.emp).forEach(x => {
+      let r = ROWS.find(y => y.id === x.emp.id);
+      if (!r) { const prev = DATA.people.find(p => p.id === x.emp.id) || {}; r = { id: x.emp.id, name: x.emp.name, honbu: x.emp.honbu, dept: x.emp.dept, notes: '', prev_salary: prev.prev_salary, prev_welfare: prev.prev_welfare }; ROWS.push(r); }
+      r.salary = x.sal; r.welfare = x.wel;
+      if (x.tsu && !/通勤手当/.test(r.notes || '')) r.notes = (r.notes ? r.notes + '／' : '') + `通勤手当 ${x.tsu.toLocaleString()} 円を除く`;
+    });
+    setDirty(true); renderAll();
+  });
+}
 
 // ---------- Excel から読み込み（今の振替表の月シート） ----------
 $('import-btn').onclick = () => $('import-file').click();
